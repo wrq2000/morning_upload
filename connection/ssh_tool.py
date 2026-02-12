@@ -8,9 +8,13 @@ from typing import Optional, Tuple
 import requests
 # Настройки
 SSH_HOST = os.getenv("SSH_HOST")
-SSH_PORT = os.getenv("SSH_PORT")
+SSH_PORT = int(os.getenv('SSH_PORT', '22'))
 SSH_USER = os.getenv("SSH_USER")
 SSH_KEY = os.getenv("SSH_KEY")
+# SSH_HOST="8.208.19.219"
+# SSH_PORT=20222
+# SSH_USER="airflow"
+# SSH_KEY=r"C:\Users\volog\Desktop\keys\.ssh\id_rsa"
 
 class SSHSOCKSProxy:
     def __init__(
