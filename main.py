@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # === УПРАВЛЕНИЕ ПРОЦЕССАМИ: для отключения достаточно закомментировать строку ===
 ENABLED_PROCESSES = [
-    ("Argus Media", "run_argus"),
+    # ("Argus Media", "run_argus"),
     ("DESFA", "run_desfa"),
     # ("EPİAŞ", "run_epias"),  # Закомментировать эту строку для полного отключения процесса
 ]
