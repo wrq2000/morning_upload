@@ -13,7 +13,6 @@ from common.mailer import send_mail
 from connection.ssh_tool import create_proxy
 
 # Настройка логирования
-setup_logging()
 logger = logging.getLogger(__name__)
 
 
