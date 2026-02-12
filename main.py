@@ -1,8 +1,11 @@
 """
 Точка входа для запуска всех процессов сбора данных
 """
-import os
-
+import logging
+from common.logfile import setup_logging
+# Настройка логирования (ТОЛЬКО ОДИН РАЗ!) и загрузка переменных окружения
+setup_logging()
+logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 load_dotenv()
 import random
@@ -10,15 +13,10 @@ import sys
 import asyncio
 import time
 from datetime import datetime
-from common.logfile import setup_logging
 from processes.argus import ArgusProcess
 from processes.desfa_lng_plan import DesfaUnloadingPlanProcess
 from processes.epias import EpiasProcess, processing_config, url_dict
-import logging
 
-# Настройка логирования (ТОЛЬКО ОДИН РАЗ!) и загрузка переменных окружения
-setup_logging()
-logger = logging.getLogger(__name__)
 
 
 # === УПРАВЛЕНИЕ ПРОЦЕССАМИ: для отключения достаточно закомментировать строку ===
