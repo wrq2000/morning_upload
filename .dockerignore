@@ -1,0 +1,27 @@
+# Игнорируем всё по умолчанию
+*
+
+# Разрешаем только необходимое
+!main.py
+!requirements.txt
+!settings.py
+!processes/
+!connection/
+!common/
+!.env.example
+
+# Исключаем специфичные файлы внутри разрешённых директорий
+processes/__pycache__/
+processes/*.pyc
+common/__pycache__/
+common/*.pyc
+*.log
+*.csv
+*.xlsx
+.env
+__pycache__/
+.venv/
+.git/
+.idea/
+.vscode/
+temp_*/
