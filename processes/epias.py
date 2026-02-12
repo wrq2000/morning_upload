@@ -16,7 +16,6 @@ import numpy as np
 import re
 from common.logfile import setup_logging
 
-setup_logging()
 logger = logging.getLogger(__name__)
 
 

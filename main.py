@@ -3,6 +3,8 @@
 """
 import logging
 from common.logfile import setup_logging
+from processes.belaes import BelaesProcess
+
 # Настройка логирования (ТОЛЬКО ОДИН РАЗ!) и загрузка переменных окружения
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -23,6 +25,7 @@ from processes.epias import EpiasProcess, processing_config, url_dict
 ENABLED_PROCESSES = [
     # ("Argus Media", "run_argus"),
     ("DESFA", "run_desfa"),
+    ("БелАЭС", "run_belaes"),
     # ("EPİAŞ", "run_epias"),  # Закомментировать эту строку для полного отключения процесса
 ]
 # ================================================================================
@@ -56,7 +59,9 @@ async def run_argus() -> dict:
 
 async def run_desfa() -> dict:
     """Асинхронная обёртка для DESFA"""
-    logger.info(f"[2/{len(ENABLED_PROCESSES)}] Запуск DESFA...")
+    # logger.info(f"[2/{len(ENABLED_PROCESSES)}] Запуск DESFA...")
+    logger.info(
+        f"[{len([p for p in ENABLED_PROCESSES if 'desfa' in p[1].lower()]) + 1}/{len(ENABLED_PROCESSES)}] Запуск DESFA...")
     start = time.time()
 
     try:
@@ -100,6 +105,27 @@ async def run_epias() -> dict:
             'errors': [str(e)]
         }
 
+
+async def run_belaes() -> dict:
+    """Асинхронная обёртка для БелАЭС"""
+    logger.info(f"[{len([p for p in ENABLED_PROCESSES if 'belaes' in p[1].lower()]) + 1}/{len(ENABLED_PROCESSES)}] Запуск БелАЭС...")
+    start = time.time()
+
+    try:
+        belaes = BelaesProcess()
+        result = await asyncio.to_thread(belaes.run)
+        duration = time.time() - start
+        result['duration_sec'] = round(duration, 2)
+        logger.info(f"✅ БелАЭС завершён за {duration:.1f} сек")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Ошибка выполнения БелАЭС: {e}", exc_info=True)
+        return {
+            'success': False,
+            'all_success': False,
+            'duration_sec': round(time.time() - start, 2),
+            'errors': [str(e)]
+        }
 
 async def main_async() -> int:
     """Основная асинхронная функция"""

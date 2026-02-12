@@ -3,7 +3,6 @@ processes/desfa.py
 Парсер для мониторинга и скачивания годового плана СПГ с сайта DESFA (Греция)
 """
 import os
-import logging
 from pathlib import Path
 from urllib.parse import urlparse, unquote
 from datetime import datetime
@@ -11,13 +10,10 @@ import json
 from bs4 import BeautifulSoup
 import requests
 from dotenv import load_dotenv
-from common.logfile import setup_logging
 from common.mailer import send_mail
 from connection.ssh_tool import create_proxy
 from settings import desfa_unloading_plan
-
-# Настройка логирования
-setup_logging()
+import logging
 logger = logging.getLogger(__name__)
 
 class DesfaUnloadingPlanProcess:
