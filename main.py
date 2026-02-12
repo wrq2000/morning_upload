@@ -1,28 +1,40 @@
 """
 Точка входа для запуска всех процессов сбора данных
 """
+import os
+
+from dotenv import load_dotenv
+load_dotenv()
 import random
 import sys
 import asyncio
 import time
 from datetime import datetime
-from dotenv import load_dotenv
 from common.logfile import setup_logging
 from processes.argus import ArgusProcess
 from processes.desfa_lng_plan import DesfaUnloadingPlanProcess
 from processes.epias import EpiasProcess, processing_config, url_dict
 import logging
+
 # Настройка логирования (ТОЛЬКО ОДИН РАЗ!) и загрузка переменных окружения
-setup_logging()  # Сохраняем логгер для использования в этом модуле
+setup_logging()
 logger = logging.getLogger(__name__)
+
+
+# === УПРАВЛЕНИЕ ПРОЦЕССАМИ: для отключения достаточно закомментировать строку ===
+ENABLED_PROCESSES = [
+    ("Argus Media", "run_argus"),
+    ("DESFA", "run_desfa"),
+    # ("EPİAŞ", "run_epias"),  # Закомментировать эту строку для полного отключения процесса
+]
+# ================================================================================
+
 
 async def run_argus() -> dict:
     """Асинхронная обёртка для Argus с случайной задержкой (0-600 сек)"""
-    # Генерируем случайную задержку от 0 до 600 секунд
     delay = random.uniform(0, 600)
-    logger.info(f"[1/3] Запуск Argus Media с задержкой {delay:.1f} секунд...")
+    logger.info(f"[1/{len(ENABLED_PROCESSES)}] Запуск Argus Media с задержкой {delay:.1f} секунд...")
 
-    # Асинхронное ожидание (не блокирует другие задачи)
     await asyncio.sleep(delay)
     logger.info(f"✅ Задержка завершена, начинаю обработку Argus Media")
     start = time.time()
@@ -46,7 +58,7 @@ async def run_argus() -> dict:
 
 async def run_desfa() -> dict:
     """Асинхронная обёртка для DESFA"""
-    logger.info("[2/3] Запуск DESFA...")
+    logger.info(f"[2/{len(ENABLED_PROCESSES)}] Запуск DESFA...")
     start = time.time()
 
     try:
@@ -67,7 +79,7 @@ async def run_desfa() -> dict:
 
 async def run_epias() -> dict:
     """Асинхронная обёртка для EPİAŞ"""
-    logger.info("[3/3] Запуск EPİAŞ...")
+    logger.info(f"[3/{len(ENABLED_PROCESSES)}] Запуск EPİAŞ...")
     start = time.time()
 
     try:
@@ -98,48 +110,47 @@ async def main_async() -> int:
     logger.info(f"🚀 Запуск системы сбора данных: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 70)
 
-    # Запуск всех процессов параллельно
-    results = await asyncio.gather(
-        run_argus(),
-        run_desfa(),
-        # run_epias(),
-        return_exceptions=False
-    )
+    # Динамическое формирование задач на основе списка ENABLED_PROCESSES
+    tasks = []
+    for idx, (name, func_name) in enumerate(ENABLED_PROCESSES, 1):
+        func = globals()[func_name]
+        # Обновляем номер этапа в логах для корректной нумерации
+        tasks.append((name, func()))
 
-    argus_result, desfa_result = results
+    # Запуск всех активных процессов параллельно
+    if tasks:
+        results = await asyncio.gather(*[task for _, task in tasks], return_exceptions=False)
+        process_results = dict(zip([name for name, _ in tasks], results))
+    else:
+        process_results = {}
+        logger.warning("⚠️  Нет активных процессов для запуска")
 
     # Итоги
     total_duration = (datetime.now() - start_time).total_seconds()
-
-    # Определение общего успеха с учётом различий в структуре результатов
-    argus_success = argus_result.get('all_success', False) or argus_result.get('success', False)
-    desfa_success = desfa_result.get('success', False)
-    # epias_success = epias_result.get('success', False)
-    all_success = argus_success and desfa_success #and epias_success
+    all_success = True
+    errors_summary = []
 
     logger.info("\n" + "=" * 70)
     logger.info("🏁 ИТОГИ РАБОТЫ")
     logger.info("=" * 70)
-    logger.info(f"Argus Media:   {'✅ УСПЕШНО' if argus_success else '❌ ОШИБКА'} "
-                f"({argus_result.get('duration_sec', 0):.1f} сек)")
-    logger.info(f"DESFA:         {'✅ УСПЕШНО' if desfa_success else '❌ ОШИБКА'} "
-                f"({desfa_result.get('duration_sec', 0):.1f} сек)")
-    # logger.info(f"EPİAŞ:         {'✅ УСПЕШНО' if epias_success else '❌ ОШИБКА'} "
-    #             f"({epias_result.get('duration_sec', 0):.1f} сек)")
+
+    for name, result in process_results.items():
+        success = result.get('all_success', False) or result.get('success', False)
+        duration = result.get('duration_sec', 0)
+        logger.info(f"{name:15}: {'✅ УСПЕШНО' if success else '❌ ОШИБКА'} ({duration:.1f} сек)")
+
+        if not success:
+            all_success = False
+            for err in result.get('errors', []):
+                errors_summary.append(f"  • {name}: {err}")
+
     logger.info(f"Общее время:   {total_duration:.1f} сек")
     logger.info("=" * 70)
 
     if not all_success:
         logger.warning("\n⚠️  Некоторые процессы завершились с ошибками:")
-        if not argus_success:
-            for err in argus_result.get('errors', []):
-                logger.warning(f"  • Argus: {err}")
-        if not desfa_success:
-            for err in desfa_result.get('errors', []):
-                logger.warning(f"  • DESFA: {err}")
-        # if not epias_success:
-        #     for err in epias_result.get('errors', []):
-        #         logger.warning(f"  • EPİAŞ: {err}")
+        for err in errors_summary:
+            logger.warning(err)
 
     return 0 if all_success else 1
 
@@ -149,19 +160,12 @@ def main() -> int:
     try:
         return asyncio.run(main_async())
     except KeyboardInterrupt:
-        if 'logger' in locals():
-            logger.info("\n⚠️  Выполнение прервано пользователем")
-        else:
-            print("\n⚠️  Выполнение прервано пользователем")
-        return 130  # Код выхода для KeyboardInterrupt
+        logger.info("\n⚠️  Выполнение прервано пользователем")
+        return 130
     except Exception as e:
-        if 'logger' in locals():
-            logger.error(f"❌ Критическая ошибка выполнения: {e}", exc_info=True)
-        else:
-            print(f"❌ Критическая ошибка выполнения: {e}")
+        logger.error(f"❌ Критическая ошибка выполнения: {e}", exc_info=True)
         return 1
 
 
 if __name__ == "__main__":
-    load_dotenv()
     sys.exit(main())
