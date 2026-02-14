@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 from common.logfile import setup_logging
 from common.mailer import send_mail
-from connection.ssh_tool import create_proxy
+
 
 # Настройка логирования
 logger = logging.getLogger(__name__)

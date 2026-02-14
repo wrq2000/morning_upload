@@ -18,14 +18,15 @@ from datetime import datetime
 from processes.argus import ArgusProcess
 from processes.desfa_lng_plan import DesfaUnloadingPlanProcess
 from processes.epias import EpiasProcess, processing_config, url_dict
-
+from processes.tuzgolu import TuzGoluFixedTemplateParser  # ← ДОБАВЛЕНО
 
 
 # === УПРАВЛЕНИЕ ПРОЦЕССАМИ: для отключения достаточно закомментировать строку ===
 ENABLED_PROCESSES = [
-    # ("Argus Media", "run_argus"),
-    ("DESFA", "run_desfa"),
-    ("БелАЭС", "run_belaes"),
+    ("Argus Media", "run_argus"),
+    # ("DESFA", "run_desfa"),
+    # ("БелАЭС", "run_belaes"),
+    # ("Tuz Gölü", "run_tuzgolu"),  # ← ДОБАВЛЕНО
     # ("EPİAŞ", "run_epias"),  # Закомментировать эту строку для полного отключения процесса
 ]
 # ================================================================================
@@ -55,6 +56,34 @@ async def run_argus() -> dict:
             'duration_sec': round(time.time() - start, 2),
             'errors': [str(e)]
         }
+
+
+
+
+
+async def run_tuzgolu() -> dict:  # ← ДОБАВЛЕНО
+    """Асинхронная обёртка для Tuz Gölü EBT"""
+    logger.info(f"[{len([p for p in ENABLED_PROCESSES if 'tuzgolu' in p[1].lower()]) + 1}/{len(ENABLED_PROCESSES)}] Запуск Tuz Gölü...")
+    start = time.time()
+
+    try:
+        tuzgolu = TuzGoluFixedTemplateParser()
+        result = await asyncio.to_thread(tuzgolu.run)
+        duration = time.time() - start
+        result['duration_sec'] = round(duration, 2)
+        logger.info(f"✅ Tuz Gölü завершён за {duration:.1f} сек")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Ошибка выполнения Tuz Gölü: {e}", exc_info=True)
+        return {
+            'success': False,
+            'processed': 0,
+            'failed': 1,
+            'duration_sec': round(time.time() - start, 2),
+            'errors': [str(e)]
+        }
+
+...  # остальной код
 
 
 async def run_desfa() -> dict:
