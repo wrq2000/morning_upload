@@ -3,13 +3,15 @@ import re
 import cv2
 import logging
 import tempfile
+
+import numpy as np
 import pytesseract
 import requests
 import pandas as pd
 from urllib.parse import urlparse
 from datetime import datetime
 from pathlib import Path
-
+from PIL import Image, ImageEnhance
 
 # ==============================
 # ТОЧНАЯ СТРУКТУРА ТАБЛИЦ В ПИКСЕЛЯХ
@@ -123,15 +125,16 @@ class TuzGoluFixedTemplateParser:
                     text = ""
                 else:
                     gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                    # binary_resized = cv2.resize(gray, None, fx=1, fy=1, interpolation=cv2.INTER_LANCZOS4)
                     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-                    h, w = binary.shape
-                    if h < 20 or w < 30:
-                        binary = cv2.resize(binary, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
 
+                    # 🔑 ИСПРАВЛЕНИЕ 2: Инвертируем цвета (чёрный текст на белом фоне)
+                    # binary = cv2.bitwise_not(binary)  # Добавляем эту строку
+                    # Распознавание текста
                     text = pytesseract.image_to_string(
-                        binary,
-                        lang='rus+eng',
-                        config='--psm 7 --oem 3 --dpi 300'
+                        binary,  # Передаем массив NumPy
+                        lang='eng',
+                        config='--psm 6 --oem 3 -c tessedit_char_whitelist=0123456789.,-'
                     ).strip()
 
                     if self.debug_roi:
@@ -247,14 +250,19 @@ class TuzGoluFixedTemplateParser:
                         if not s or not s.strip():
                             return None
                         s = s.strip()
-                        # Правило: "05" → 0.5, "005" → 0.05
+
+                        # Правило: "05" → 0.5
                         if re.match(r'^0\d+$', s):
                             return float(f"0.{s[1:]}")
-                        # Стандартная очистка для чисел
+
+                        # Стандартная очистка
                         num_clean = re.sub(r'[^\d.,]', '', s)
                         if not num_clean:
                             return None
-                        num_clean = num_clean.replace('.', '').replace(',', '.')
+
+                        # 🔑 ИСПРАВЛЕНИЕ: УБРАЛИ УДАЛЕНИЕ ТОЧЕК (оставили только замену запятых)
+                        num_clean = num_clean.replace(',', '.')  # ← ЭТО ЕДИНСТВЕННАЯ ПРАВКА
+
                         try:
                             return float(num_clean)
                         except ValueError:
@@ -487,6 +495,7 @@ if __name__ == "__main__":
         # Парсим
         template = TABLE_TEMPLATES[str(img_num)]
         raw_df = parser._parse_with_precise_template(img, template, str(img_num))
+        # clean_df = raw_df.copy()
         clean_df = parser._postprocess_dataframe(raw_df, str(img_num))
 
         # Показываем результат
