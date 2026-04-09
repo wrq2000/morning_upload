@@ -8,7 +8,7 @@ import requests
 import pandas as pd
 from urllib.parse import urlparse
 from datetime import datetime
-
+from pathlib import Path
 
 # ==============================
 # ТОЧНАЯ СТРУКТУРА ТАБЛИЦ В ПИКСЕЛЯХ
