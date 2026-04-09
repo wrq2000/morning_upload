@@ -1,5 +1,6 @@
 """
 Модуль для работы с данными портала EPİAŞ (Турция)
+Объединяет все источники в один Excel-файл с разными листами
 """
 import logging
 import os
@@ -163,6 +164,9 @@ class EpiasData:
 class EpiasProcess:
     """Оркестратор получения, обработки и отправки данных EPİAŞ"""
 
+    # Максимальная длина имени листа в Excel (лимит pandas/openpyxl)
+    _MAX_SHEET_NAME_LEN = 31
+
     def __init__(
         self,
         processing_config: Dict[str, Any],
@@ -191,11 +195,9 @@ class EpiasProcess:
             )
 
         # Инициализация отправщика почты
-
         from common.mailer import MailSender
         self.mailer = MailSender()
         logger.debug("MailSender успешно инициализирован")
-
 
         # Валидация конфигурации
         invalid_sources = set(processing_config.keys()) - set(url_dict.keys())
@@ -204,6 +206,18 @@ class EpiasProcess:
                 f"Обработчики настроены для несуществующих источников: {invalid_sources}. "
                 f"Доступные источники: {list(url_dict.keys())}"
             )
+
+    @staticmethod
+    def _sanitize_sheet_name(name: str) -> str:
+        """
+        Очищает имя источника для использования в качестве имени листа Excel.
+        - Заменяет недопустимые символы на '_'
+        - Обрезает до 31 символа (лимит Excel)
+        """
+        # Заменяем недопустимые символы: \ / ? * [ ]
+        sanitized = re.sub(r'[\\/?*\[\]]', '_', name)
+        # Обрезаем до лимита Excel
+        return sanitized[:EpiasProcess._MAX_SHEET_NAME_LEN]
 
     def login(self) -> str:
         """Авторизация в системе EPİAŞ"""
@@ -268,38 +282,57 @@ class EpiasProcess:
             logger.error(f"❌ Ошибка получения данных для '{name}': {e}", exc_info=True)
             raise
 
-    def _save_temp_csv(self, df: pd.DataFrame, name: str) -> Optional[Path]:
-        """Сохраняет датафрейм во временный CSV файл для отправки по почте"""
-        if df.empty:
-            logger.warning(f"⚠️  Пропускаю сохранение пустого датафрейма для '{name}'")
+    def _save_combined_excel(self, dataframes: Dict[str, pd.DataFrame], filename: str) -> Optional[Path]:
+        """
+        Сохраняет несколько датафреймов в один Excel-файл на разных листах.
+        Имена листов создаются на основе ключей словаря (с санитизацией).
+        """
+        if not dataframes:
+            logger.warning("⚠️  Нет данных для сохранения в Excel")
             return None
 
-        timestamp = dt.now().strftime('%Y%m%d_%H%M')
-        filename = f"{name}_{timestamp}.csv"
         filepath = Path(self.temp_dir) / filename
 
-        df.to_csv(filepath, index=False, encoding='utf-8-sig')
-        logger.debug(f"Временный файл создан: {filepath}")
-        return filepath
+        try:
+            with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+                for source_name, df in dataframes.items():
+                    if df.empty:
+                        logger.warning(f"⚠️  Пропускаю пустой датафрейм для листа '{source_name}'")
+                        continue
 
-    def _prepare_email_body(self, processed_sources: List[str]) -> str:
+                    sheet_name = self._sanitize_sheet_name(source_name)
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    logger.debug(f"✅ Сохранён лист '{sheet_name}' ({len(df)} строк)")
+
+            logger.info(f"✅ Excel-файл создан: {filepath}")
+            return filepath
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка сохранения Excel-файла: {e}", exc_info=True)
+            return None
+
+    def _prepare_email_body(self, processed_sources: List[str], excel_filename: str) -> str:
         """Подготавливает тело письма"""
         body = f"""
 Добрый день!
 
-Во вложении данные с портала EPİAŞ за период (последние 30 дней):
+Во вложении — объединённый Excel-файл с данными с портала EPİAŞ за период (последние 30 дней).
 
+📁 Файл: {excel_filename}
+
+📊 Источники данных (отдельные листы):
 """
-        for source in processed_sources:
-            body += f"• {source}\n"
+        for i, source in enumerate(processed_sources, 1):
+            sheet_name = self._sanitize_sheet_name(source)
+            body += f"{i}. {sheet_name} ← {source}\n"
 
-        body += f"\nДата формирования: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        body += f"\n🕐 Дата формирования: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}"
         body += "\n\n--\nС уважением,\nСистема автоматического сбора данных EPİAŞ"
 
         return body
 
-    def _send_email(self, file_paths: List[Path], processed_sources: List[str]) -> bool:
-        """Отправляет email с вложениями"""
+    def _send_email(self, file_path: Path, processed_sources: List[str], excel_filename: str) -> bool:
+        """Отправляет email с вложением (один Excel-файл)"""
         # Проверка наличия получателей
         if not self.recipients:
             logger.info("ℹ️  Отправка email пропущена: нет получателей (RECIPIENTS не задан)")
@@ -309,23 +342,23 @@ class EpiasProcess:
             logger.warning("⚠️  Отправка email пропущена: MailSender не инициализирован")
             return False
 
-        if not file_paths:
-            logger.warning("⚠️  Нет файлов для отправки")
+        if not file_path or not file_path.exists():
+            logger.warning("⚠️  Файл для отправки не найден")
             return False
 
         try:
             subject = f"EPİAŞ данные за {dt.now().strftime('%Y-%m-%d')}"
-            body = self._prepare_email_body(processed_sources)
+            body = self._prepare_email_body(processed_sources, excel_filename)
 
             self.mailer.send_mail(
                 recipients=self.recipients,
                 subject=subject,
                 body=body,
-                file_paths=[str(fp) for fp in file_paths]
+                file_paths=[str(file_path)]
             )
 
             logger.info(f"✅ Письмо успешно отправлено на: {', '.join(self.recipients)}")
-            logger.info(f"✅ Вложено файлов: {len(file_paths)}")
+            logger.info(f"✅ Вложен файл: {excel_filename}")
             return True
 
         except Exception as e:
@@ -336,10 +369,11 @@ class EpiasProcess:
         """Удаляет все временные файлы из директории"""
         try:
             files_deleted = 0
-            for file in Path(self.temp_dir).glob("*.csv"):
-                file.unlink()
-                files_deleted += 1
-                logger.debug(f"Временный файл удалён: {file}")
+            for ext in ["*.csv", "*.xlsx"]:
+                for file in Path(self.temp_dir).glob(ext):
+                    file.unlink()
+                    files_deleted += 1
+                    logger.debug(f"Временный файл удалён: {file}")
 
             if files_deleted > 0:
                 logger.info(f"✅ Удалено временных файлов: {files_deleted}")
@@ -360,7 +394,8 @@ class EpiasProcess:
             'sources_failed': int,     # Количество неудачных источников
             'sources': List[str],      # Список успешно обработанных источников
             'errors': List[str],       # Список ошибок
-            'duration_sec': float      # Время выполнения в секундах
+            'duration_sec': float,     # Время выполнения в секундах
+            'excel_file': str          # Имя созданного Excel-файла (если есть)
         }
         """
         start_time = time.time()
@@ -368,9 +403,11 @@ class EpiasProcess:
         logger.info("🚀 Запуск процесса получения и отправки данных EPİAŞ")
         logger.info("=" * 70)
 
-        temp_files: Dict[str, Path] = {}
+        processed_dataframes: Dict[str, pd.DataFrame] = {}
         processed_sources: List[str] = []
         errors: List[str] = []
+        excel_file_path: Optional[Path] = None
+        excel_filename: Optional[str] = None
 
         try:
             self.login()
@@ -398,16 +435,13 @@ class EpiasProcess:
                     processed_df = processor.process(raw_df)
                     logger.info(f"✅ Обработано {len(processed_df)} строк после применения обработчика")
 
-                    # Сохранение во временный файл
-                    temp_file = self._save_temp_csv(processed_df, name)
-                    if temp_file:
-                        temp_files[name] = temp_file
+                    # Сохраняем датафрейм в словарь для последующего объединения
+                    if not processed_df.empty:
+                        processed_dataframes[name] = processed_df
                         processed_sources.append(name)
-                        logger.info(f"✅ Источник '{name}' успешно обработан и сохранён")
+                        logger.info(f"✅ Источник '{name}' успешно обработан")
                     else:
-                        err_msg = f"Не удалось создать временный файл для '{name}'"
-                        logger.warning(f"⚠️  {err_msg}")
-                        errors.append(err_msg)
+                        logger.warning(f"⚠️  Датафрейм для '{name}' пуст после обработки")
 
                 except Exception as e:
                     err_msg = f"Ошибка обработки источника '{name}': {str(e)}"
@@ -415,10 +449,23 @@ class EpiasProcess:
                     errors.append(err_msg)
                     continue
 
+            # Создание объединённого Excel-файла
+            if processed_dataframes:
+                timestamp = dt.now().strftime('%Y%m%d_%H%M')
+                excel_filename = f"epias_combined_{timestamp}.xlsx"
+                excel_file_path = self._save_combined_excel(processed_dataframes, excel_filename)
+
+                if excel_file_path:
+                    logger.info(f"✅ Создан объединённый Excel-файл: {excel_filename}")
+                else:
+                    errors.append("Не удалось создать Excel-файл")
+            else:
+                logger.warning("⚠️  Нет данных для создания Excel-файла")
+
             # Отправка email
             email_sent = False
-            if temp_files and processed_sources:
-                email_sent = self._send_email(list(temp_files.values()), processed_sources)
+            if excel_file_path and processed_sources:
+                email_sent = self._send_email(excel_file_path, processed_sources, excel_filename or "")
                 if email_sent:
                     logger.info("✅ Данные EPİAŞ успешно отправлены по почте")
                 else:
@@ -446,7 +493,8 @@ class EpiasProcess:
                 'sources_failed': len(self.url_dict) - len(processed_sources),
                 'sources': processed_sources,
                 'errors': errors,
-                'duration_sec': round(duration, 2)
+                'duration_sec': round(duration, 2),
+                'excel_file': excel_filename
             }
 
             # Логирование итогов
@@ -456,6 +504,8 @@ class EpiasProcess:
             logger.info(f"Успешно обработано источников: {result['sources_processed']}")
             logger.info(f"Ошибок обработки: {result['sources_failed']}")
             logger.info(f"Общее время выполнения: {result['duration_sec']} сек")
+            if excel_filename:
+                logger.info(f"Создан Excel-файл: {excel_filename}")
 
             if errors:
                 logger.info("\nОшибки:")
@@ -476,7 +526,8 @@ class EpiasProcess:
                 'sources_failed': len(self.url_dict),
                 'sources': [],
                 'errors': [err_msg],
-                'duration_sec': round(duration, 2)
+                'duration_sec': round(duration, 2),
+                'excel_file': None
             }
 
         finally:
