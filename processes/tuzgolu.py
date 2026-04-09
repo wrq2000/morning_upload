@@ -3,15 +3,12 @@ import re
 import cv2
 import logging
 import tempfile
-
-import numpy as np
 import pytesseract
 import requests
 import pandas as pd
 from urllib.parse import urlparse
 from datetime import datetime
-from pathlib import Path
-from PIL import Image, ImageEnhance
+
 
 # ==============================
 # ТОЧНАЯ СТРУКТУРА ТАБЛИЦ В ПИКСЕЛЯХ
@@ -92,9 +89,18 @@ class TuzGoluFixedTemplateParser:
         return response.content
 
     def _save_temp_image(self, image_bytes: bytes, suffix=".png") -> str:
+        """Сохраняет изображение во временный файл со случайным именем (для обратной совместимости)"""
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(image_bytes)
             return tmp.name
+
+    def _save_image_with_name(self, image_bytes: bytes, filename: str, suffix=".png") -> str:
+        """Сохраняет изображение с указанным именем в download_dir"""
+        filepath = self.download_dir / filename
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        with open(filepath, "wb") as f:
+            f.write(image_bytes)
+        return str(filepath)
 
     def _detect_type_from_url(self, url: str) -> str:
         path = urlparse(url).path
@@ -125,14 +131,11 @@ class TuzGoluFixedTemplateParser:
                     text = ""
                 else:
                     gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-                    # binary_resized = cv2.resize(gray, None, fx=1, fy=1, interpolation=cv2.INTER_LANCZOS4)
                     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-                    # 🔑 ИСПРАВЛЕНИЕ 2: Инвертируем цвета (чёрный текст на белом фоне)
-                    # binary = cv2.bitwise_not(binary)  # Добавляем эту строку
                     # Распознавание текста
                     text = pytesseract.image_to_string(
-                        binary,  # Передаем массив NumPy
+                        binary,
                         lang='eng',
                         config='--psm 6 --oem 3 -c tessedit_char_whitelist=0123456789.,-'
                     ).strip()
@@ -260,8 +263,7 @@ class TuzGoluFixedTemplateParser:
                         if not num_clean:
                             return None
 
-                        # 🔑 ИСПРАВЛЕНИЕ: УБРАЛИ УДАЛЕНИЕ ТОЧЕК (оставили только замену запятых)
-                        num_clean = num_clean.replace(',', '.')  # ← ЭТО ЕДИНСТВЕННАЯ ПРАВКА
+                        num_clean = num_clean.replace(',', '.')
 
                         try:
                             return float(num_clean)
@@ -326,14 +328,23 @@ class TuzGoluFixedTemplateParser:
 
         return df
 
-
     def _send_success_email(self, csv_paths, image_paths):
+        # Формируем список прикреплённых файлов для отображения в письме
+        attachments_info = []
+        for p in csv_paths:
+            attachments_info.append(f"📊 {Path(p).name}")
+        for p in image_paths:
+            attachments_info.append(f"🖼️ {Path(p).name}")
+
         subject = f"Tuz Gölü Data — {datetime.now().strftime('%d.%m.%Y')}"
         body = f"""Добрый день!
 
 Автоматически распознанные данные с сайта Tuz Gölü EBT.
 
 Дата: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}
+
+Прикреплённые файлы:
+{chr(10).join(attachments_info)}
 
 С уважением,
 Автоматизированная система мониторинга
@@ -383,19 +394,24 @@ class TuzGoluFixedTemplateParser:
                     img_type = self._detect_type_from_url(url)
                     template = TABLE_TEMPLATES[img_type]
 
-                    image_bytes = self._download_image(url)
-                    temp_img_path = self._save_temp_image(image_bytes, suffix=".png")
-                    all_image_paths.append(temp_img_path)
+                    # === Генерируем единое базовое имя для CSV и изображения ===
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    base_filename = f"tuzgolu_{img_type}_{timestamp}"
 
-                    img = cv2.imread(temp_img_path)
+                    # Скачиваем и сохраняем изображение с осмысленным именем
+                    image_bytes = self._download_image(url)
+                    image_path = self._save_image_with_name(image_bytes, f"{base_filename}.png")
+                    all_image_paths.append(image_path)
+
+                    img = cv2.imread(image_path)
                     if img is None:
                         raise ValueError("Не удалось загрузить изображение")
 
                     raw_df = self._parse_with_precise_template(img, template, img_type)
                     clean_df = self._postprocess_dataframe(raw_df, img_type)
 
-                    # Сохраняем CSV
-                    csv_path = self.download_dir / f"tuzgolu_{img_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                    # Сохраняем CSV с тем же базовым именем
+                    csv_path = self.download_dir / f"{base_filename}.csv"
                     clean_df.to_csv(csv_path, index=False, encoding='utf-8-sig')
                     all_csv_paths.append(csv_path)
 
@@ -431,17 +447,14 @@ class TuzGoluFixedTemplateParser:
             return result
 
         finally:
-            # Удаляем временные изображения
-            for img_path in all_image_paths:
+            # Удаляем временные файлы (изображения и CSV)
+            for file_path in all_image_paths + all_csv_paths:
                 try:
-                    os.unlink(img_path)
+                    if os.path.exists(file_path):
+                        os.unlink(file_path)
+                        logger.debug(f"🗑️ Удалён: {file_path}")
                 except Exception as e:
-                    logger.warning(f"Не удалось удалить {img_path}: {e}")
-            for csv_path in all_csv_paths:
-                try:
-                    os.unlink(csv_path)
-                except Exception as e:
-                    logger.warning(f"Не удалось удалить {csv_path}: {e}")
+                    logger.warning(f"Не удалось удалить {file_path}: {e}")
 
     @classmethod
     def get_name(cls):
@@ -452,6 +465,7 @@ if __name__ == "__main__":
     import sys
     from pathlib import Path
     from dotenv import load_dotenv
+
     load_dotenv()
 
     # Настройка простого логирования
@@ -495,7 +509,6 @@ if __name__ == "__main__":
         # Парсим
         template = TABLE_TEMPLATES[str(img_num)]
         raw_df = parser._parse_with_precise_template(img, template, str(img_num))
-        # clean_df = raw_df.copy()
         clean_df = parser._postprocess_dataframe(raw_df, str(img_num))
 
         # Показываем результат
