@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "date": "2026-11-24",
+  "fingerprint": "a20469b8d194c2874a54b02546fe9e790b901271130e33c24994eafd56a42bfe",
+  "accepted": [
+    "a.vologzhaninov@adm.gazprom.ru",
+    "gasdb@adm.gazprom.ru",
+    "vologzhaninov@gmail.com"
+  ],
+  "pending": [],
+  "subject": "УЭБ — экспорт природного газа — 2026-11-24",
+  "body": "Результаты торгов природным газом на экспорт.\n\nПроверка: 24.11.2026 15:03:53 +0300.\nПроверенное окно: 11.11.2026 — 24.11.2026.\nПредыдущая успешная проверка с отправленным отчётом: 23.11.2026 11:27:24 +0300.\nС момента предыдущей проверки обнаружены новые торговые сессии с опубликованными результатами: 1.\nИз этих сессий с продажами: 1; без продаж: 0. Сессии без продаж также учитываются как торги.\nДней с этими торгами: 1. Даты: 23.11.2026.\n- GASEDP-231126-1400-1: были продажи.\n\nПозиций: 55. Компаний: 24.\nВо вложении таблица CSV с детализацией по компаниям.\nactual_cost = sold_volume × price_avg.\n",
+  "last_reported_check": {
+    "checked_at": "2026-11-24T15:03:53+03:00",
+    "start_date": "2026-10-15",
+    "window_from": "2026-11-11",
+    "end_date": "2026-11-24",
+    "sessions": {
+      "GASEDP-131126-1400-1": {
+        "date": "2026-11-13",
+        "has_sales": true,
+        "result_hash": "8a0550bcc71b90b33e538c8faa72af4519798965df45ed95add80e72c24377d8"
+      },
+      "GASEDP-131126-1500-1": {
+        "date": "2026-11-13",
+        "has_sales": true,
+        "result_hash": "8aea51abb052e96fa12dde0287f5e340e956813ccdaaee8fe0626f5b548d5167"
+      },
+      "GASEDP-161126-1400-1": {
+        "date": "2026-11-16",
+        "has_sales": true,
+        "result_hash": "9847e72a4d26c7cacf33fc562e1d229c456985f288cd22e2a6b0608123e3a3aa"
+      },
+      "GASEDP-171126-1400-1": {
+        "date": "2026-11-17",
+        "has_sales": true,
+        "result_hash": "9b13f6192fe3e70b764e9a5c0d2157e5d3e238918d305005cae3fe828d438b0d"
+      },
+      "GASEDP-181126-1400-1": {
+        "date": "2026-11-18",
+        "has_sales": true,
+        "result_hash": "1a22e573885fa4e3fa1286fa308d8b8a6f4ec9cb283a4e130c43d18190207bd3"
+      },
+      "GASEDP-191126-1400-1": {
+        "date": "2026-11-19",
+        "has_sales": true,
+        "result_hash": "767b9047fa791bd033d86eedaadf82baf321b8693c3a41dcac6f34e682db83e6"
+      },
+      "GASEDP-201126-1400-1": {
+        "date": "2026-11-20",
+        "has_sales": true,
+        "result_hash": "6f5c9279cc7facf8f2867640fc4402b37f811fc5cd00669be2234920cbc9a8b9"
+      },
+      "GASEDP-231126-1400-1": {
+        "date": "2026-11-23",
+        "has_sales": true,
+        "result_hash": "905ce838546667fbd6bcd37a6fb47fb592e484a29bae2af23e6db17e365a22b3"
+      }
+    },
+    "pending": {},
+    "complete": true,
+    "errors": [],
+    "excluded_auction_ids": []
+  }
+}

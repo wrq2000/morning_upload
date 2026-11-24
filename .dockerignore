@@ -6,8 +6,11 @@
 !requirements.txt
 !settings.py
 !processes/
+!processes/**
 !connection/
+!connection/**
 !common/
+!common/**
 !.env.example
 
 # Исключаем специфичные файлы внутри разрешённых директорий
@@ -25,3 +28,6 @@ __pycache__/
 .idea/
 .vscode/
 temp_*/
+**/__pycache__/
+**/*.pyc
+build.log

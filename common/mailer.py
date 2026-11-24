@@ -1,183 +1,158 @@
-"""
-common/mailer.py
-Модуль для отправки почты с поддержкой динамических получателей
-"""
-import smtplib
-import os
+"""Письма с вложениями: основной SMTP и резервный сервис; прежний интерфейс сохранён."""
 import logging
+import math
+import mimetypes
+import os
+import smtplib
+import ssl
+from dataclasses import dataclass, field
+from email.message import EmailMessage
+from email.utils import formatdate, getaddresses, make_msgid
 from pathlib import Path
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-from dotenv import load_dotenv
 
-# Настройка логирования (без вызова setup_logging — это делает точка входа)
 logger = logging.getLogger(__name__)
-#
+
+
+def recipient_list(value):
+    if value is None:
+        value = os.getenv("RECIPIENTS", "")
+    items = value if isinstance(value, (list, tuple)) else [str(value)]
+    addresses = [address.strip() for _, address in getaddresses(items) if address.strip()]
+    if any("@" not in address or "\n" in address or "\r" in address for address in addresses):
+        raise ValueError("Некорректный список получателей")
+    return list(dict.fromkeys(addresses))
+
+
+@dataclass(frozen=True)
+class SMTPProfile:
+    name: str
+    host: str
+    port: int
+    username: str
+    password: str = field(repr=False)
+    sender: str
+    security: str
+    timeout: float
+
+
+def _profile(prefix, name):
+    host = os.getenv(prefix + "SERVER", "smtp.yandex.ru" if name == "primary" else "").strip()
+    email = os.getenv(prefix + "EMAIL", "").strip()
+    password = os.getenv(prefix + "PASSWORD", "")
+    if not host or not email or not password:
+        raise ValueError(prefix + "SERVER/EMAIL/PASSWORD не заполнены")
+    port = int(os.getenv(prefix + "PORT", "587"))
+    security = os.getenv(prefix + "SECURITY", "ssl" if port == 465 else "starttls").strip().casefold()
+    timeout = float(os.getenv(prefix + "TIMEOUT", "30"))
+    if not 1 <= port <= 65535 or not math.isfinite(timeout) or timeout <= 0 or security not in {"ssl", "starttls"}:
+        raise ValueError(prefix + "PORT/SECURITY/TIMEOUT: неверные настройки")
+    return SMTPProfile(name, host, port, os.getenv(prefix + "USERNAME", email).strip(), password,
+                       os.getenv(prefix + "FROM", email).strip(), security, timeout)
+
 
 class MailSender:
-    """Класс для отправки почты с вложениями"""
+    """Основной сервис → резервный; уже принятые получатели повторно не отправляются."""
 
     def __init__(self):
-        self.smtp_server = os.getenv("SMTP_SERVER", "smtp.yandex.ru")
-        self.smtp_port = int(os.getenv("SMTP_PORT", 587))
-        self.smtp_email = os.getenv("SMTP_EMAIL")
-        self.smtp_password = os.getenv("SMTP_PASSWORD")
+        self.profiles = []
+        for prefix, name in (("SMTP_", "primary"), ("SMTP_BACKUP_", "backup")):
+            if name == "backup" and not any(os.getenv(prefix + key) for key in ("SERVER", "EMAIL", "PASSWORD")):
+                continue
+            try:
+                self.profiles.append(_profile(prefix, name))
+            except ValueError as exc:
+                logger.warning("Настройки почты %s: %s", name, exc)
+        if not self.profiles:
+            raise ValueError("Не настроен ни основной SMTP_*, ни резервный SMTP_BACKUP_* сервис")
+        first = self.profiles[0]
+        # Совместимые атрибуты прежнего MailSender.
+        self.smtp_server, self.smtp_port = first.host, first.port
+        self.smtp_email, self.smtp_password = first.sender, first.password
+        self.last_delivery = {"accepted": [], "pending": [], "providers": []}
 
-        # 🔑 ДИАГНОСТИКА: временно для отладки (удалить в продакшене!)
-        if not self.smtp_email or not self.smtp_password:
-            logger.error("❌ SMTP_EMAIL или SMTP_PASSWORD не загружены из .env!")
-            logger.error(f"SMTP_EMAIL: {self.smtp_email}")
-            logger.error(f"SMTP_PASSWORD: {'*' * len(self.smtp_password) if self.smtp_password else 'NOT SET'}")
-            logger.error(f"Текущая директория: {os.getcwd()}")
-            logger.error(f"Путь к .env: {Path('.env').resolve()}")
-            raise ValueError("SMTP_EMAIL и SMTP_PASSWORD должны быть указаны в .env файле")
-        else:
-            logger.debug(f"✅ SMTP настройки загружены: {self.smtp_email}@{self.smtp_server}")
+    @staticmethod
+    def _connect(profile):
+        context = ssl.create_default_context()
+        server = None
+        try:
+            if profile.security == "ssl":
+                server = smtplib.SMTP_SSL(profile.host, profile.port, timeout=profile.timeout, context=context)
+            else:
+                server = smtplib.SMTP(profile.host, profile.port, timeout=profile.timeout)
+                server.ehlo()
+                server.starttls(context=context)
+                server.ehlo()
+            server.login(profile.username, profile.password)
+            return server
+        except Exception:
+            if server is not None:
+                server.close()
+            raise
+
+    @staticmethod
+    def _close(server):
+        if server is not None:
+            try:
+                server.quit()
+            except Exception:
+                # Ошибка QUIT после принятого DATA не отменяет подтверждённую отправку.
+                try:
+                    server.close()
+                except Exception:
+                    pass
 
     def send_mail(self, file_paths=None, subject=None, body=None, recipients=None):
-        """
-        Отправка письма с вложениями или без
-
-        Args:
-            file_paths: Список путей к файлам для отправки (опционально)
-            subject: Тема письма
-            body: Текст письма
-            recipients: Список получателей или строка через запятую (опционально, берется из .env если не указано)
-
-        Returns:
-            bool: Успешность отправки
-        """
-        # Определяем получателей
-        if recipients is None:
-            recipients_str = os.getenv("RECIPIENTS", "")
-        elif isinstance(recipients, list):
-            recipients_str = ",".join(recipients)
-        else:
-            recipients_str = str(recipients)
-
-        recipient_list = [r.strip() for r in recipients_str.split(",") if r.strip()]
-
-        if not recipient_list:
-            logger.error("Не указаны получатели для отправки письма")
-            return False
-
+        """Прежние аргументы; False означает, что остались неподтверждённые получатели."""
+        self.last_delivery = {"accepted": [], "pending": [], "providers": []}
         try:
-            # Создаем сообщение
-            msg = MIMEMultipart()
-            msg['From'] = self.smtp_email
-            msg['To'] = ", ".join(recipient_list)
-            msg['Subject'] = subject or "Отчет системы сбора данных"
-
-            # Добавляем тело письма
-            msg.attach(MIMEText(body or "", 'plain', 'utf-8'))
-
-            # Добавляем вложения, если есть
-            if file_paths:
-                logger.info(f"Добавление {len(file_paths)} вложений...")
-                for file_path in file_paths:
-                    if not os.path.exists(file_path):
-                        logger.warning(f"Файл не найден: {file_path}")
-                        continue
-
-                    try:
-                        file_size = os.path.getsize(file_path)
-                        file_name = os.path.basename(file_path)
-                        logger.info(f"Добавление вложения: {file_name} ({file_size / 1024:.2f} КБ)")
-
-                        with open(file_path, "rb") as attachment:
-                            part = MIMEBase('application', 'octet-stream')
-                            part.set_payload(attachment.read())
-
-                        encoders.encode_base64(part)
-                        # 🔑 ИСПРАВЛЕНИЕ: используем правильный синтаксис заголовка
-                        part.add_header(
-                            'Content-Disposition',
-                            f'attachment; filename="{file_name}"'
-                        )
-                        msg.attach(part)
-
-                    except Exception as e:
-                        logger.error(f"Ошибка при добавлении файла {file_path}: {str(e)}")
-                        continue
-
-            # Отправка
-            logger.info(f"Подключение к SMTP серверу: {self.smtp_server}:{self.smtp_port}")
-            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
-            server.starttls()
-            server.login(self.smtp_email, self.smtp_password)
-
-            logger.info(f"Отправка письма на {len(recipient_list)} получателей...")
-            server.send_message(msg)
-            server.quit()
-
-            logger.info("✅ Письмо успешно отправлено!")
-            return True
-
-        except smtplib.SMTPAuthenticationError as e:
-            logger.error(f"❌ Ошибка аутентификации SMTP: {str(e)}")
-            logger.error("Проверьте:")
-            logger.error("  1. Правильность SMTP_EMAIL и SMTP_PASSWORD в .env")
-            logger.error("  2. Для Яндекса: включена ли 'Пароли приложений' в настройках почты")
-            logger.error("  3. Для Gmail: включена ли 'Двухфакторная аутентификация' и создан ли 'Пароль приложения'")
-            return False
-        except smtplib.SMTPConnectError:
-            logger.error(f"❌ Ошибка подключения к серверу {self.smtp_server}:{self.smtp_port}")
-            return False
-        except Exception as e:
-            logger.error(f"❌ Ошибка отправки письма: {str(e)}", exc_info=True)
+            pending = recipient_list(recipients)
+            if not pending:
+                raise ValueError("Не указаны получатели для отправки письма")
+            attachments = []
+            for file_path in file_paths or []:
+                path = Path(file_path)
+                if not path.is_file():
+                    raise FileNotFoundError("Не найдено вложение: " + str(path))
+                mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+                payload = path.read_bytes()
+                attachments.append((path.name, payload, mime.split("/", 1)))
+                logger.info("Вложение: %s (%.2f КБ)", path.name, len(payload) / 1024)
+        except Exception as exc:
+            logger.error("Письмо не подготовлено: %s", exc)
             return False
 
-    def test_connection(self):
-        """Тестирование подключения к почтовому серверу"""
-        try:
-            logger.info("Тестирование подключения к SMTP серверу...")
-            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
-            server.starttls()
-            server.login(self.smtp_email, self.smtp_password)
-            server.quit()
-            logger.info("✅ Подключение успешно!")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Ошибка подключения: {str(e)}")
-            return False
-
+        self.last_delivery = {"accepted": [], "pending": list(pending), "providers": []}
+        message_id = make_msgid()
+        for profile in self.profiles:
+            server = None
+            try:
+                msg = EmailMessage()
+                msg["From"], msg["To"] = profile.sender, ", ".join(pending)
+                msg["Subject"] = subject or "Отчет системы сбора данных"
+                msg["Date"], msg["Message-ID"] = formatdate(localtime=True), message_id
+                msg.set_content(body or "", charset="utf-8")
+                for name, payload, (maintype, subtype) in attachments:
+                    msg.add_attachment(payload, maintype=maintype, subtype=subtype, filename=name)
+                logger.info("SMTP %s: %s:%s; получателей %s", profile.name, profile.host, profile.port, len(pending))
+                server = self._connect(profile)
+                refused = server.send_message(msg, from_addr=profile.sender, to_addrs=pending) or {}
+                refused_keys = {address.casefold() for address in refused}
+                accepted = [address for address in pending if address.casefold() not in refused_keys]
+                self.last_delivery["accepted"].extend(accepted)
+                self.last_delivery["providers"].append({"name": profile.name, "accepted": len(accepted)})
+                pending = [address for address in pending if address.casefold() in refused_keys]
+                self.last_delivery["pending"] = list(pending)
+                if not pending:
+                    logger.info("Письмо принято SMTP-сервисом %s", profile.name)
+                    return True
+                logger.warning("SMTP %s отклонил %s получателей; пробуем резервный сервис", profile.name, len(pending))
+            except Exception as exc:
+                logger.warning("SMTP %s: %s; код %s", profile.name, type(exc).__name__, getattr(exc, "smtp_code", "нет"))
+            finally:
+                self._close(server)
+        logger.error("Отправка не подтверждена для %s получателей", len(pending))
+        return False
 
 def send_mail(file_paths=None, subject=None, body=None, recipients=None):
-    """
-    Удобная функция для отправки письма
-
-    Args:
-        file_paths: Список путей к файлам (опционально)
-        subject: Тема письма
-        body: Текст письма
-        recipients: Получатели (строка или список)
-
-    Returns:
-        bool: Успешность отправки
-    """
-    sender = MailSender()
-    return sender.send_mail(
-        file_paths=file_paths,
-        subject=subject,
-        body=body,
-        recipients=recipients
-    )
-
-
-if __name__ == "__main__":
-    load_dotenv()
-    # Настройка логирования для тестового запуска
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s'
-    )
-
-    # Тест отправки без вложений
-    success = send_mail(
-        subject="Тестовое письмо из mailer.py",
-        body="Это тестовое письмо для проверки работы модуля.",
-        recipients="vologzhaninov@gmail.com"
-    )
-    print(f"\n{'✅ УСПЕШНО' if success else '❌ ОШИБКА'}: Результат отправки: {success}")
+    """Совместимая функция отправки для всех прежних процессов."""
+    return MailSender().send_mail(file_paths=file_paths, subject=subject, body=body, recipients=recipients)

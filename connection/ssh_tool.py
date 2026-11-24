@@ -215,22 +215,3 @@ def create_proxy() -> Tuple[str, SSHSOCKSProxy]:
     )
     url = proxy.start()
     return url, proxy  # возвращаем URL и объект для ручного .stop()
-
-
-
-if __name__ == '__main__':
-    proxy_dict, proxy = create_proxy()
-    print(proxy_dict)
-
-    try:
-        print(f"SOCKS5 proxy ready")
-
-        # Проверка
-        session = requests.Session()
-        session.proxies = proxy_dict
-        resp = session.get("https://gas.rftoday.ru", timeout=10)
-        print(resp.text)
-
-    finally:
-        proxy.stop()
-        print("SSH SOCKS proxy stopped.")

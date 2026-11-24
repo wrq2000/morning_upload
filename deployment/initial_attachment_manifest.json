@@ -1,0 +1,97 @@
+{
+  "attachment": "morning_upload.zip",
+  "archive_sha256": "674e3e7685468ba2fc26775fba2373855394d9f211982d96c1e0b806eabb7ce2",
+  "excluded_runtime": [
+    ".env",
+    "processes/state",
+    "logs",
+    "output"
+  ],
+  "files": {
+    ".dockerignore": {
+      "sha256": "555d41d3e7a913d7af8eaea50c694c2e7a8295e6e3d4778571a37eb116372a86",
+      "normalized_sha256": "afd4d55b4604b7224a914916280de5f9158a802e218270913c17316e8e7881b1",
+      "size": 486
+    },
+    "Dockerfile": {
+      "sha256": "b77a2e9a3f4a3d2a264b6ff0ae8a6cf666cd3eb82c8af624c08cdfcb170b3661",
+      "normalized_sha256": "09bb9f6581fc66bee93125ebaaf359c0201419080329b3de8291689b5d98e7da",
+      "size": 332
+    },
+    "requirements.txt": {
+      "sha256": "bd0f743c4ccb2112da638b729540f0f103c82f27d0684bd8914aa945f7fee048",
+      "normalized_sha256": "b8189a6ca70c8910e492e362ac9aaa95993d137f5ef3001bfcf759da46d1a795",
+      "size": 2590
+    },
+    "main.py": {
+      "sha256": "2717dcc9d91bfecf73a1b9932a9c800e3f3232c98e8602372f41ac82f73370fa",
+      "normalized_sha256": "bdf2aacda1b194bae0f85381b309a87d3beb85c5abdeaeae8562a069cf5908d2",
+      "size": 8884
+    },
+    "settings.py": {
+      "sha256": "b8604254a2776b9c8037d5d7005f2b77a84c38e264a9806b8165db70ccdd7d7e",
+      "normalized_sha256": "b8604254a2776b9c8037d5d7005f2b77a84c38e264a9806b8165db70ccdd7d7e",
+      "size": 111
+    },
+    "common/mailer.py": {
+      "sha256": "a42eb1a31a9490c5b9b58e2e8aaf3536cba982bb9e111773158d0a488787d84a",
+      "normalized_sha256": "50438e01c1b77aa2a5bf532b48e5fb203911415eb9efdbcc968d041a223b21fc",
+      "size": 8609
+    },
+    "common/logfile.py": {
+      "sha256": "67d2cee523528b33cab6e93248dd10a0065683f515ec23d78446dee192410aaa",
+      "normalized_sha256": "8721adb840dc3c9877c375c2502dc8e4f6f6ddbf146d1e888ca79f8662857dd5",
+      "size": 3812
+    },
+    "connection/ssh_tool.py": {
+      "sha256": "bd34be66d1611b498cfc36c57d23d9f97cbc192b2412b083b615b25b6c993b94",
+      "normalized_sha256": "1cbb7a61f276110d6d30c39e0862e3aadef0172ff8878b847f2bc0c21c4ce9b2",
+      "size": 8367
+    },
+    "connection/_alter_ssh.py": {
+      "sha256": "183817fa58ab5f3ee2c75c28da1cbc1db3daebebed6bc61f1d3896d038cfdb61",
+      "normalized_sha256": "321d11733866d5a995cb1a571c62c714cca545c6c3316fc24058ee6329c564da",
+      "size": 4716
+    },
+    "processes/tuzgolu.py": {
+      "sha256": "ffe090c3056d530794a530c9009c38a82465753e2a6cb003c0064e9a4aa5c326",
+      "normalized_sha256": "4e8540ed3cb0974ac8e39d76692793b090f0e7ed3aec357b6dab0a61ce670a61",
+      "size": 21581
+    },
+    "processes/belaes.py": {
+      "sha256": "564df1494b86cd9fb7aacd6b5355d74696829e33232eb405678c7208b6c9ac3b",
+      "normalized_sha256": "d74461c916d7eb71f9efcc246f234f783b90c947bfaba4a4c59f26b74519c582",
+      "size": 15632
+    },
+    "processes/epias.py": {
+      "sha256": "cdacee5e29504a8fc3ed2ab5fb28fc3f619e315d625b2fcb03ac7a8a73542031",
+      "normalized_sha256": "1522bfd489dfbdde1dabeaab5c6643323062f889b290277f235340077e045aa4",
+      "size": 26716
+    },
+    "processes/desfa_lng_plan.py": {
+      "sha256": "480dc9de7a570d01b52f8607a75cd206762fb4bba2a6af6c24d5c9a54e4a8d28",
+      "normalized_sha256": "7ae49ff9a54dd1c931bc25e1b866a68f8e36c558d91a83304273dad9c5c15651",
+      "size": 20831
+    },
+    "processes/2.png": {
+      "sha256": "e5b6bbd0f04a4623df5ae9755cede61941d318ed286fbc3681d657fb3ebd540e",
+      "normalized_sha256": "e5b6bbd0f04a4623df5ae9755cede61941d318ed286fbc3681d657fb3ebd540e",
+      "size": 6766
+    },
+    "processes/3.png": {
+      "sha256": "8480126dcb61aab06176bdbd80cc20c8f71f8c49661a1bfa1e6ad1c888aa3148",
+      "normalized_sha256": "8480126dcb61aab06176bdbd80cc20c8f71f8c49661a1bfa1e6ad1c888aa3148",
+      "size": 7212
+    },
+    "processes/argus.py": {
+      "sha256": "74c72b180fa4d334e0eaec505cfda4a32d1d304716c3c0f26b4c90e368ee52cc",
+      "normalized_sha256": "e7d9b716ec2c88a7cb78a024d67b8c5c2de378121090055bc7d426ad8d8a8f31",
+      "size": 23661
+    },
+    "processes/1.png": {
+      "sha256": "06fa8011c1adc118588db22c41c390f6016e6537844d1fda365e9d9d36dc6b1e",
+      "normalized_sha256": "06fa8011c1adc118588db22c41c390f6016e6537844d1fda365e9d9d36dc6b1e",
+      "size": 5637
+    }
+  }
+}

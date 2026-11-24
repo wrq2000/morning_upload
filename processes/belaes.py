@@ -3,7 +3,6 @@ belaes_collector.py
 Модуль для сбора данных о производственных показателях Белорусской АЭС
 """
 import os
-import requests
 import re
 import csv
 import io
@@ -11,8 +10,13 @@ import tempfile
 from datetime import datetime
 from typing import Dict, Optional
 from common.mailer import send_mail
+from common.csv_delivery import dated_filename
+from common.http_fallback import fetch_text_with_fallback
+from common.errors import SourceError
 import logging
 logger = logging.getLogger(__name__)
+REPORT_DATE_PATTERN = re.compile(r"По состоянию на\s+(\d{2}\.\d{2}\.\d{4})")
+PRODUCTION_PATTERN = re.compile(r"(\d+[\.,]\d+)\s*млн\s*кВт\*ч")
 
 class BelaesProcess:
     """
@@ -21,7 +25,7 @@ class BelaesProcess:
 
     def __init__(self):
         """Инициализация коллектора"""
-        self.url = "https://belaes.by/ru/proizvodstvennye-pokazateli.html"
+        self.url = os.getenv("BELAES_URL", "https://belaes.by/ru/proizvodstvennye-pokazateli.html").strip()
 
         # Получатели для успешной отправки
         self.success_recipients = (
@@ -54,14 +58,12 @@ class BelaesProcess:
         """
         try:
             # Извлекаем дату отчёта
-            date_pattern = r'По состоянию на (\d{2}\.\d{2}\.\d{4})'
-            date_match = re.search(date_pattern, html)
+            date_match = REPORT_DATE_PATTERN.search(html)
             report_date = date_match.group(1) if date_match else None
 
             # Извлекаем значения выработки из таблицы
             # Формат: "37073,28 млн кВт*ч" и "19472,83 млн кВт*ч"
-            value_pattern = r'(\d+[\.,]\d+)\s*млн\s*кВт\*ч'
-            values = re.findall(value_pattern, html)
+            values = PRODUCTION_PATTERN.findall(html)
 
             if len(values) < 2:
                 logger.warning("Не найдены данные о выработке на странице")
@@ -91,79 +93,40 @@ class BelaesProcess:
             return None
 
     def format_as_csv(self, data: Dict) -> str:
-        """
-        Форматирует данные в CSV формат
-
-        Структура файла:
-        - date: Дата отчёта
-        - fetch_date: Дата сбора
-        - unit_1: Энергоблок №1 (млн кВт*ч)
-        - unit_2: Энергоблок №2 (млн кВт*ч)
-
-        Args:
-            data: Словарь с данными
-
-        Returns:
-            CSV-строка
-        """
+        """Возвращает по одной строке на блок с накопленной выработкой в млн кВт·ч."""
         output = io.StringIO()
+        writer = csv.writer(output, delimiter=";", quoting=csv.QUOTE_NONE, lineterminator="\n")
+        writer.writerow(["source_date", "fetch_date", "unit", "accumulated_production"])
 
-        # Используем специальный writer с правильными настройками
-        writer = csv.writer(
-            output,
-            delimiter=';',  # Точка с запятой как разделитель
-            quoting=csv.QUOTE_NONE,  # Без кавычек
-            lineterminator='\n'  # Используем только \n для переносов
-        )
-
-        # Заголовки на английском
-        writer.writerow([
-            'date',
-            'fetch_date',
-            'unit_1',
-            'unit_2'
-        ])
-
-        # Данные
-        writer.writerow([
-            data.get('report_date', ''),
-            data['parsed_at'].strftime('%d.%m.%Y %H:%M:%S'),
-            f"{data.get('block1_mwh', 0):.2f}",
-            f"{data.get('block2_mwh', 0):.2f}"
-        ])
+        source_date = data.get("report_date", "")
+        fetch_date = data["parsed_at"].strftime("%d.%m.%Y %H:%M:%S")
+        for unit, field in (("Блок 1", "block1_mwh"), ("Блок 2", "block2_mwh")):
+            writer.writerow([source_date, fetch_date, unit, f"{data[field]:.2f}"])
 
         return output.getvalue()
 
-    def fetch_html(self) -> Optional[str]:
-        """
-        Получает HTML-код страницы с данными БелАЭС
-
-        Returns:
-            HTML-код страницы или None при ошибке
-        """
+    @staticmethod
+    def validate_production_page(html):
+        """HTTP 200 со страницей блокировки не считается успешной загрузкой."""
+        match = REPORT_DATE_PATTERN.search(html)
+        if match is None or len(PRODUCTION_PATTERN.findall(html)) < 2:
+            raise SourceError("Нет даты и показателей двух блоков БелАЭС; возможно, получена страница ограничения доступа")
         try:
-            logger.info(f"Загрузка страницы: {self.url}")
+            datetime.strptime(match.group(1), "%d.%m.%Y")
+        except ValueError as exc:
+            raise SourceError("Некорректная дата отчёта на странице БелАЭС") from exc
 
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                             '(KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-            }
-
-            response = requests.get(self.url, headers=headers, timeout=30)
-            response.raise_for_status()
-
-            # Устанавливаем кодировку (сайт использует utf-8)
-            response.encoding = 'utf-8'
-            html = response.text
-
-            logger.info(f"✅ Страница успешно загружена, размер: {len(html)} байт")
+    def fetch_html(self) -> Optional[str]:
+        """AUTO: сначала напрямую, при сбое — SSH/VPN без зависимости от Hiddify."""
+        try:
+            html = fetch_text_with_fallback(
+                self.url, "BELAES", validator=self.validate_production_page,
+                ssh_fallback_prefix="UEEX",
+            )
+            logger.info("✅ Страница БелАЭС успешно загружена, символов: %s", len(html))
             return html
-
-        except requests.RequestException as e:
-            logger.error(f"❌ Ошибка при загрузке страницы: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"❌ Неожиданная ошибка при загрузке страницы: {e}", exc_info=True)
+        except Exception as exc:
+            logger.error("❌ Ошибка при загрузке страницы БелАЭС: %s", exc, exc_info=True)
             return None
 
     def save_csv_to_tempfile(self, csv_content: str) -> Optional[str]:
@@ -178,7 +141,7 @@ class BelaesProcess:
         """
         try:
             temp_dir = tempfile.gettempdir()
-            filename = f"belaes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            filename = dated_filename("belaes.csv")
             temp_path = os.path.join(temp_dir, filename)
 
             # Сохраняем с BOM для корректного открытия в Excel
@@ -368,23 +331,3 @@ class BelaesProcess:
         finally:
             # Записываем длительность выполнения
             result['duration_sec'] = round((datetime.now() - start_time).total_seconds(), 2)
-
-
-# ==============================================================================
-# Точка входа для тестового запуска
-# ==============================================================================
-
-if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    # Создаем экземпляр и запускаем сбор
-    collector = BelaesProcess()
-    result = collector.run()
-
-    logger.info(f"\n{'=' * 60}")
-    logger.info(f"Результат: {'✅ УСПЕШНО' if result['success'] else '❌ ОШИБКА'}")
-    logger.info(f"Длительность: {result['duration_sec']:.2f} сек")
-    if result['errors']:
-        logger.info(f"Ошибки: {result['errors']}")
-    logger.info(f"{'=' * 60}\n")

@@ -1,0 +1,146 @@
+--- initial/Dockerfile
+
++++ server/Dockerfile
+
+@@ -1,12 +1,54 @@
+
+-# Образ с Python 3.12 (Ubuntu 22.04)
+-FROM mcr.microsoft.com/playwright/python:v1.50.0-noble
++# ===== БАЗОВЫЙ ОБРАЗ =====
++FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
+ 
+ WORKDIR /app
+ 
++# ===== ШАГ 1: Настройка репозиториев (меняется крайне редко) =====
++# Вынесено в отдельный слой — кэшируется, пока не изменится базовый образ
++RUN sed -i 's|https\?://archive\.ubuntu\.com/ubuntu|http://mirror.yandex.ru/ubuntu|g' /etc/apt/sources.list && \
++    sed -i 's|https\?://security\.ubuntu\.ubuntu|http://mirror.yandex.ru/ubuntu|g' /etc/apt/sources.list
++
++# ===== ШАГ 2: Системные зависимости — локаль (лёгкий слой) =====
++# Кэшируется отдельно от тяжёлых пакетов вроде tesseract
++RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
++                   --allow-releaseinfo-change && \
++    apt-get install -y --allow-unauthenticated locales && \
++    locale-gen en_US.UTF-8 && \
++    apt-get clean && rm -rf /var/lib/apt/lists/*
++
++# ===== ШАГ 3: Системные зависимости — tesseract (тяжёлый, но стабильный слой) =====
++# Если список пакетов не меняется — этот слой не пересобирается
++RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
++                   --allow-releaseinfo-change && \
++    apt-get install -y --allow-unauthenticated --no-install-recommends \
++        tesseract-ocr \
++        libtesseract-dev \
++        libleptonica-dev \
++        tesseract-ocr-eng \
++        tesseract-ocr-tur \
++        tesseract-ocr-rus && \
++    apt-get clean && rm -rf /var/lib/apt/lists/*
++
++# ===== ШАГ 4: Переменные окружения =====
++# Не влияют на кэш, но важны для работы приложения
++ENV LANG=en_US.UTF-8 \
++    LC_ALL=en_US.UTF-8 \
++    PYTHONIOENCODING=utf-8 \
++    PYTHONUTF8=1 \
++    NO_COLOR=1
++
++# ===== ШАГ 5: Python-зависимости (ключевой слой для кэша!) =====
++# Копируем ТОЛЬКО requirements.txt — при изменении кода этот слой НЕ инвалидируется
+ COPY requirements.txt .
+-# Устанавливаем без --no-cache-dir для отладки (потом можно вернуть)
+-RUN pip install -r requirements.txt
++RUN pip install --no-cache-dir -r requirements.txt
+ 
++# ===== ШАГ 6: Установка браузеров Playwright =====
++# Зависит от установленных Python-пакетов, поэтому после pip install
++RUN playwright install chromium
++
++# ===== ШАГ 7: Исходный код приложения (меняется чаще всего — должен быть последним) =====
++# При изменении кода пересобирается только этот слой и CMD
+ COPY . .
+ 
++# ===== ЗАПУСК =====
+ CMD ["python", "main.py"]
+--- initial/main.py
+
++++ server/main.py
+
+@@ -24,10 +24,10 @@
+
+ # === УПРАВЛЕНИЕ ПРОЦЕССАМИ: для отключения достаточно закомментировать строку ===
+ ENABLED_PROCESSES = [
+     # ("Argus Media", "run_argus"),
+-    # ("DESFA", "run_desfa"),
+-    # ("БелАЭС", "run_belaes"),
+-    # ("Tuz Gölü", "run_tuzgolu"),  # ← ДОБАВЛЕНО
+-    ("EPİAŞ", "run_epias"),  # Закомментировать эту строку для полного отключения процесса
++#     ("DESFA", "run_desfa"),
++     ("БелАЭС", "run_belaes"),
++     ("Tuz Gölü", "run_tuzgolu"),  
++     ("EPİAŞ", "run_epias"),  
+ ]
+ # ================================================================================
+ 
+--- initial/processes/epias.py
+
++++ server/processes/epias.py
+
+@@ -185,7 +185,7 @@
+
+         self.tgt = None
+ 
+         # Загрузка получателей из .env (инкапсулировано внутри класса)
+-        recipients_raw = os.getenv("RECIPIENTS", "")
++        recipients_raw =os.getenv("EPIAS_RECIPIENTS", "") or os.getenv("RECIPIENTS", "")
+         self.recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
+ 
+         if not self.recipients:
+--- initial/requirements.txt
+
++++ server/requirements.txt
+
+@@ -7,42 +7,6 @@
+
+ colorlog==6.10.1
+ cryptography==46.0.5
+ dotenv==0.9.9
+-greenlet==3.3.1
+-idna==3.11
+-invoke==2.2.1
+-lxml==6.0.2
+-numpy==2.4.2
+-opencv-python==4.13.0.92
+-packaging==26.0
+-pandas==3.0.0
+-paramiko==4.0.0
+-pillow==12.1.1
+-playwright==1.58.0
+-pycparser==3.0
+-pyee==13.0.1
+-PyNaCl==1.6.2
+-PySocks==1.7.1
+-pytesseract==0.3.13
+-python-dateutil==2.9.0.post0
+-python-dotenv==1.2.1
+-requests==2.32.5
+-setuptools==82.0.0
+-six==1.17.0
+-soupsieve==2.8.3
+-typing_extensions==4.15.0
+-tzdata==2025.3
+-urllib3==2.6.3
+-wheel==0.46.3
+-bcrypt==5.0.0
+-beautifulsoup4==4.14.3
+-certifi==2026.1.4
+-cffi==2.0.0
+-charset-normalizer==3.4.4
+-colorama==0.4.6
+-colorlog==6.10.1
+-cryptography==46.0.5
+-dotenv==0.9.9
+-et_xmlfile==2.0.0
+ greenlet==3.3.1
+ idna==3.11
+ invoke==2.2.1

@@ -94,35 +94,3 @@ def get_requests_session_with_socks(proxy_url: str) -> requests.Session:
     session = requests.Session()
     session.proxies = {"http": proxy_url, "https": proxy_url}
     return session
-
-
-# ✅ Пример использования (Windows-совместимый)
-if __name__ == "__main__":
-    try:
-        # Запускаем туннель
-        proc, proxy_url = start_ssh_socks_proxy(
-            ssh_host="8.208.19.219",
-            ssh_username="airflow",
-            ssh_private_key=r"C:\Users\volog\Desktop\keys\.ssh\id_rsa",
-            local_port=20222,
-            background=False,
-        )
-
-        # Создаём сессию
-        session = get_requests_session_with_socks(proxy_url)
-
-        # Проверка
-        print("🔍 Запрос через SOCKS5-прокси...")
-        url = 'https://serbia-energy.eu/serbia-prepares-contingency-plans-to-secure-oil-supply-amid-potential-us-sanctions-on-nis/'
-        resp = session.get(url, timeout=10)
-        print("✅ Успешно! Ваш публичный IP через сервер:")
-        print(resp.text)
-
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
-    finally:
-        # Туннель автоматически завершится при выходе (благодаря atexit),
-        # но можно и явно:
-        if 'proc' in locals() and proc.poll() is None:
-            proc.terminate()
-            proc.wait()

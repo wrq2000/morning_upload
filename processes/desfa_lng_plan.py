@@ -455,26 +455,3 @@ URL: {url or 'N/A'}
     def get_name(cls):
         """Возвращает имя парсера для логирования и идентификации"""
         return "desfa"
-
-
-# Для тестирования напрямую
-if __name__ == "__main__":
-    load_dotenv()
-    parser = DesfaUnloadingPlanProcess()
-    result = parser.run()
-
-    logger.info("\n" + "=" * 60)
-    logger.info("📊 ИТОГИ РАБОТЫ DESFA PARSER")
-    logger.info("=" * 60)
-    logger.info(f"Успешно: {'✅ Да' if result['success'] else '❌ Нет'}")
-    logger.info(f"Файл скачан: {'✅ Да' if result['file_downloaded'] else '❌ Нет'}")
-    logger.info(f"Версия изменилась: {'✅ Да' if result['version_changed'] else '❌ Нет'}")
-    if result['version']:
-        logger.info(f"Текущая версия: {result['version']}")
-    logger.info(f"Письмо отправлено: {'✅ Да' if result['email_sent'] else '❌ Нет'}")
-    logger.info("=" * 60)
-
-    if result['success']:
-        logger.info("\n🎉 Парсер завершил работу успешно!")
-    else:
-        logger.error("\n❌ Парсер завершил работу с ошибками")
