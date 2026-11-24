@@ -1,0 +1,54 @@
+{
+  "same": [
+    "common/logfile.py",
+    "settings.py"
+  ],
+  "format_only": [],
+  "changed": [
+    ".dockerignore",
+    "Dockerfile",
+    "common/mailer.py",
+    "connection/_alter_ssh.py",
+    "connection/ssh_tool.py",
+    "main.py",
+    "processes/argus.py",
+    "processes/belaes.py",
+    "processes/desfa_lng_plan.py",
+    "processes/epias.py",
+    "processes/tuzgolu.py",
+    "requirements.txt",
+    "run.sh"
+  ],
+  "missing": [
+    "test_unicode.sh"
+  ],
+  "added": [
+    "common/__init__.py",
+    "common/checkpoint.py",
+    "common/constants.py",
+    "common/data_gateway.py",
+    "common/errors.py",
+    "common/html_tools.py",
+    "common/http_client.py",
+    "common/ssh_tunnel.py",
+    "common/storage.py",
+    "common/text.py",
+    "processes/__init__.py",
+    "processes/ueex/__init__.py",
+    "processes/ueex/business.py",
+    "processes/ueex/config.py",
+    "processes/ueex/network.py",
+    "processes/ueex/parsers.py",
+    "processes/ueex/pipeline.py",
+    "processes/ueex/process.py",
+    "processes/ueex/reporting.py",
+    "processes/ueex/processing.py",
+    "processes/ueex/sources.py",
+    "processes/ueex/translations.py"
+  ],
+  "removed_tools": [
+    "processes/ueex/preflight.py",
+    "deployment/server_audit.py",
+    "test_unicode.sh"
+  ]
+}

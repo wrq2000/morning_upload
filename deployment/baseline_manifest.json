@@ -1,0 +1,93 @@
+{
+  "attachment": "morning_upload_server.zip",
+  "archive_sha256": "54f77113b1611e88cae9199e58d169af012f28163774c2153470d90045798fbf",
+  "excluded_runtime": [
+    ".env",
+    "state",
+    "processes/state",
+    "logs",
+    "output"
+  ],
+  "files": {
+    ".dockerignore": {
+      "sha256": "afd4d55b4604b7224a914916280de5f9158a802e218270913c17316e8e7881b1",
+      "normalized_sha256": "afd4d55b4604b7224a914916280de5f9158a802e218270913c17316e8e7881b1",
+      "size": 460
+    },
+    "Dockerfile": {
+      "sha256": "2e9bdd96b04a4ba884bfae62f1ff2ef10d0c7cc52559f2b14888f83d6abc5375",
+      "normalized_sha256": "2e9bdd96b04a4ba884bfae62f1ff2ef10d0c7cc52559f2b14888f83d6abc5375",
+      "size": 2804
+    },
+    "requirements.txt": {
+      "sha256": "7abd39177c351b1017b21371d0cdec5e53c74050752778526973685e56f56bbf",
+      "normalized_sha256": "6fa438db6ef9e7c91831bf958c0ff9da932997f7810b935666bdb671ba80fd29",
+      "size": 1292
+    },
+    "test_unicode.sh": {
+      "sha256": "b9bd18443726a0f3aabcf77c56c64a59f72184c948bfaf8763315da5d908192f",
+      "normalized_sha256": "b9bd18443726a0f3aabcf77c56c64a59f72184c948bfaf8763315da5d908192f",
+      "size": 1001
+    },
+    "run.sh": {
+      "sha256": "795c36868ff7d9df250eb45816d29bcb30a0116c637c466dd1847355faec26e3",
+      "normalized_sha256": "795c36868ff7d9df250eb45816d29bcb30a0116c637c466dd1847355faec26e3",
+      "size": 694
+    },
+    "main.py": {
+      "sha256": "b057aef000deffcdac5f58c458869990eddcc78752cee70530ba9fee42489c3b",
+      "normalized_sha256": "b057aef000deffcdac5f58c458869990eddcc78752cee70530ba9fee42489c3b",
+      "size": 8522
+    },
+    "settings.py": {
+      "sha256": "b8604254a2776b9c8037d5d7005f2b77a84c38e264a9806b8165db70ccdd7d7e",
+      "normalized_sha256": "b8604254a2776b9c8037d5d7005f2b77a84c38e264a9806b8165db70ccdd7d7e",
+      "size": 111
+    },
+    "common/mailer.py": {
+      "sha256": "50438e01c1b77aa2a5bf532b48e5fb203911415eb9efdbcc968d041a223b21fc",
+      "normalized_sha256": "50438e01c1b77aa2a5bf532b48e5fb203911415eb9efdbcc968d041a223b21fc",
+      "size": 8427
+    },
+    "common/logfile.py": {
+      "sha256": "8721adb840dc3c9877c375c2502dc8e4f6f6ddbf146d1e888ca79f8662857dd5",
+      "normalized_sha256": "8721adb840dc3c9877c375c2502dc8e4f6f6ddbf146d1e888ca79f8662857dd5",
+      "size": 3722
+    },
+    "connection/ssh_tool.py": {
+      "sha256": "1cbb7a61f276110d6d30c39e0862e3aadef0172ff8878b847f2bc0c21c4ce9b2",
+      "normalized_sha256": "1cbb7a61f276110d6d30c39e0862e3aadef0172ff8878b847f2bc0c21c4ce9b2",
+      "size": 8132
+    },
+    "connection/_alter_ssh.py": {
+      "sha256": "321d11733866d5a995cb1a571c62c714cca545c6c3316fc24058ee6329c564da",
+      "normalized_sha256": "321d11733866d5a995cb1a571c62c714cca545c6c3316fc24058ee6329c564da",
+      "size": 4589
+    },
+    "processes/tuzgolu.py": {
+      "sha256": "4e8540ed3cb0974ac8e39d76692793b090f0e7ed3aec357b6dab0a61ce670a61",
+      "normalized_sha256": "4e8540ed3cb0974ac8e39d76692793b090f0e7ed3aec357b6dab0a61ce670a61",
+      "size": 21058
+    },
+    "processes/belaes.py": {
+      "sha256": "d74461c916d7eb71f9efcc246f234f783b90c947bfaba4a4c59f26b74519c582",
+      "normalized_sha256": "d74461c916d7eb71f9efcc246f234f783b90c947bfaba4a4c59f26b74519c582",
+      "size": 15243
+    },
+    "processes/epias.py": {
+      "sha256": "079db3b0ab14690020c25722d8532782b90ea8accaef5c14ab344f634e9b4e1e",
+      "normalized_sha256": "079db3b0ab14690020c25722d8532782b90ea8accaef5c14ab344f634e9b4e1e",
+      "size": 26190
+    },
+    "processes/desfa_lng_plan.py": {
+      "sha256": "7ae49ff9a54dd1c931bc25e1b866a68f8e36c558d91a83304273dad9c5c15651",
+      "normalized_sha256": "7ae49ff9a54dd1c931bc25e1b866a68f8e36c558d91a83304273dad9c5c15651",
+      "size": 20352
+    },
+    "processes/argus.py": {
+      "sha256": "e7d9b716ec2c88a7cb78a024d67b8c5c2de378121090055bc7d426ad8d8a8f31",
+      "normalized_sha256": "e7d9b716ec2c88a7cb78a024d67b8c5c2de378121090055bc7d426ad8d8a8f31",
+      "size": 23193
+    }
+  }
+}

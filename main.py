@@ -2,32 +2,34 @@
 Точка входа для запуска всех процессов сбора данных
 """
 import logging
+from pathlib import Path
+from dotenv import load_dotenv
+
+# .env рядом с main.py; Docker-переменные имеют приоритет.
+load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 from common.logfile import setup_logging
-from processes.belaes import BelaesProcess
 
 # Настройка логирования (ТОЛЬКО ОДИН РАЗ!) и загрузка переменных окружения
 setup_logging()
 logger = logging.getLogger(__name__)
-from dotenv import load_dotenv
-load_dotenv()
 import random
 import sys
 import asyncio
 import time
 from datetime import datetime
-from processes.argus import ArgusProcess
-from processes.desfa_lng_plan import DesfaUnloadingPlanProcess
-from processes.epias import EpiasProcess, processing_config, url_dict
-from processes.tuzgolu import TuzGoluFixedTemplateParser  # ← ДОБАВЛЕНО
 
 
 # === УПРАВЛЕНИЕ ПРОЦЕССАМИ: для отключения достаточно закомментировать строку ===
 ENABLED_PROCESSES = [
-    ("Argus Media", "run_argus"),
+    # ("Argus Media", "run_argus"),
     # ("DESFA", "run_desfa"),
     # ("БелАЭС", "run_belaes"),
-    # ("Tuz Gölü", "run_tuzgolu"),  # ← ДОБАВЛЕНО
-    # ("EPİAŞ", "run_epias"),  # Закомментировать эту строку для полного отключения процесса
+    # ("Tuz Gölü", "run_tuzgolu"),
+    # ("EPİAŞ", "run_epias"),
+    # ("УЭБ", "run_ueex"),
+    # ("СПбМТСБ", "run_spimex"),
+    # ("Цхинвал", "run_tskhinval"),
+    ("Eurostat", "run_eurostat"),
 ]
 # ================================================================================
 
@@ -42,6 +44,7 @@ async def run_argus() -> dict:
     start = time.time()
 
     try:
+        from processes.argus import ArgusProcess
         argus = ArgusProcess()
         result = await asyncio.to_thread(argus.run)
         duration = time.time() - start
@@ -49,7 +52,7 @@ async def run_argus() -> dict:
         logger.info(f"✅ Argus Media завершён за {duration:.1f} сек")
         return result
     except Exception as e:
-        logger.error(f"❌ Ошибка выполнения Argus: {e}", exc_info=True)
+        logger.warning(f"❌ Ошибка выполнения Argus: {e}", exc_info=True)
         return {
             'success': False,
             'all_success': False,
@@ -67,6 +70,7 @@ async def run_tuzgolu() -> dict:  # ← ДОБАВЛЕНО
     start = time.time()
 
     try:
+        from processes.tuzgolu import TuzGoluFixedTemplateParser
         tuzgolu = TuzGoluFixedTemplateParser()
         result = await asyncio.to_thread(tuzgolu.run)
         duration = time.time() - start
@@ -74,7 +78,7 @@ async def run_tuzgolu() -> dict:  # ← ДОБАВЛЕНО
         logger.info(f"✅ Tuz Gölü завершён за {duration:.1f} сек")
         return result
     except Exception as e:
-        logger.error(f"❌ Ошибка выполнения Tuz Gölü: {e}", exc_info=True)
+        logger.warning(f"❌ Ошибка выполнения Tuz Gölü: {e}", exc_info=True)
         return {
             'success': False,
             'processed': 0,
@@ -94,6 +98,7 @@ async def run_desfa() -> dict:
     start = time.time()
 
     try:
+        from processes.desfa_lng_plan import DesfaUnloadingPlanProcess
         desfa = DesfaUnloadingPlanProcess()
         result = await asyncio.to_thread(desfa.run)
         duration = time.time() - start
@@ -101,7 +106,7 @@ async def run_desfa() -> dict:
         logger.info(f"✅ DESFA завершён за {duration:.1f} сек")
         return result
     except Exception as e:
-        logger.error(f"❌ Ошибка выполнения DESFA: {e}", exc_info=True)
+        logger.warning(f"❌ Ошибка выполнения DESFA: {e}", exc_info=True)
         return {
             'success': False,
             'duration_sec': round(time.time() - start, 2),
@@ -115,6 +120,7 @@ async def run_epias() -> dict:
     start = time.time()
 
     try:
+        from processes.epias import EpiasProcess, processing_config, url_dict
         processor = EpiasProcess(
             processing_config=processing_config,
             url_dict=url_dict
@@ -125,11 +131,11 @@ async def run_epias() -> dict:
         logger.info(f"✅ EPİAŞ завершён за {duration:.1f} сек")
         return result
     except Exception as e:
-        logger.error(f"❌ Ошибка выполнения EPİAŞ: {e}", exc_info=True)
+        logger.warning(f"❌ Ошибка выполнения EPİAŞ: {e}", exc_info=True)
         return {
             'success': False,
             'sources_processed': 0,
-            'sources_failed': len(url_dict),
+            'sources_failed': len(locals().get('url_dict', {})),
             'duration_sec': round(time.time() - start, 2),
             'errors': [str(e)]
         }
@@ -141,6 +147,7 @@ async def run_belaes() -> dict:
     start = time.time()
 
     try:
+        from processes.belaes import BelaesProcess
         belaes = BelaesProcess()
         result = await asyncio.to_thread(belaes.run)
         duration = time.time() - start
@@ -148,13 +155,56 @@ async def run_belaes() -> dict:
         logger.info(f"✅ БелАЭС завершён за {duration:.1f} сек")
         return result
     except Exception as e:
-        logger.error(f"❌ Ошибка выполнения БелАЭС: {e}", exc_info=True)
+        logger.warning(f"❌ Ошибка выполнения БелАЭС: {e}", exc_info=True)
         return {
             'success': False,
             'all_success': False,
             'duration_sec': round(time.time() - start, 2),
             'errors': [str(e)]
         }
+
+async def run_ueex() -> dict:
+    """Независимая задача УЭБ: CSV и отправка через основной/резервный SMTP."""
+    start = time.time()
+    try:
+        from processes.ueex import UeexProcess
+        result = await asyncio.to_thread(UeexProcess().run)
+        result["duration_sec"] = round(time.time() - start, 2)
+        return result
+    except Exception as exc:
+        logger.warning("Ошибка процесса УЭБ")
+        return {"success": False, "duration_sec": round(time.time() - start, 2), "errors": [str(exc)]}
+
+
+async def run_spimex() -> dict:
+    """Текстовая выгрузка СПбМТСБ и ежедневное письмо с последними 30 строками."""
+    try:
+        from processes.spimex import SpimexProcess
+        return await asyncio.to_thread(lambda: SpimexProcess().run())
+    except Exception as exc:
+        logger.warning("Ошибка процесса СПбМТСБ")
+        return {"success": False, "errors": [str(exc)]}
+
+
+async def run_tskhinval() -> dict:
+    """Среднесуточная температура Цхинвала, CSV и ежедневная отправка."""
+    try:
+        from processes.tskhinval import TskhinvalProcess
+        return await asyncio.to_thread(lambda: TskhinvalProcess().run())
+    except Exception as exc:
+        logger.warning("Ошибка процесса температуры Цхинвала")
+        return {"success": False, "errors": [str(exc)]}
+
+
+async def run_eurostat() -> dict:
+    """Месячный газовый баланс, повторные попытки до успешного завершения цикла."""
+    try:
+        from processes.eurostat import EurostatGasProcess
+        return await asyncio.to_thread(lambda: EurostatGasProcess().run())
+    except Exception as exc:
+        logger.warning("Ошибка процесса Eurostat")
+        return {"success": False, "errors": [str(exc)]}
+
 
 async def main_async() -> int:
     """Основная асинхронная функция"""
@@ -163,19 +213,10 @@ async def main_async() -> int:
     logger.info(f"🚀 Запуск системы сбора данных: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 70)
 
-    # Динамическое формирование задач на основе списка ENABLED_PROCESSES
-    tasks = []
-    for idx, (name, func_name) in enumerate(ENABLED_PROCESSES, 1):
-        func = globals()[func_name]
-        # Обновляем номер этапа в логах для корректной нумерации
-        tasks.append((name, func()))
-
-    # Запуск всех активных процессов параллельно
-    if tasks:
-        results = await asyncio.gather(*[task for _, task in tasks], return_exceptions=False)
-        process_results = dict(zip([name for name, _ in tasks], results))
-    else:
-        process_results = {}
+    # Изоляция источников действует даже при необработанном исключении в обёртке.
+    from common.process_runner import run_processes
+    process_results = await run_processes(ENABLED_PROCESSES, globals())
+    if not process_results:
         logger.warning("⚠️  Нет активных процессов для запуска")
 
     # Итоги
@@ -188,9 +229,14 @@ async def main_async() -> int:
     logger.info("=" * 70)
 
     for name, result in process_results.items():
-        success = result.get('all_success', False) or result.get('success', False)
+        success = bool(result.get('all_success', result.get('success', False)))
         duration = result.get('duration_sec', 0)
-        logger.info(f"{name:15}: {'✅ УСПЕШНО' if success else '❌ ОШИБКА'} ({duration:.1f} сек)")
+        status = '✅ УСПЕШНО' if success else '⚠️ ПРЕДУПРЕЖДЕНИЕ'
+        if result.get('partial'):
+            status = '⚠️ ЧАСТИЧНО'
+        if success and result.get('skipped'):
+            status = 'ПРОПУЩЕНО'
+        logger.info(f"{name:15}: {status} ({duration:.1f} сек)")
 
         if not success:
             all_success = False
@@ -201,11 +247,13 @@ async def main_async() -> int:
     logger.info("=" * 70)
 
     if not all_success:
-        logger.warning("\n⚠️  Некоторые процессы завершились с ошибками:")
+        logger.warning("\n⚠️  Завершено с предупреждениями по отдельным источникам:")
         for err in errors_summary:
             logger.warning(err)
 
-    return 0 if all_success else 1
+    # Обработанные сбои источников отражаются в WARNING и результатах задач.
+    # Завершённый общий проход всегда возвращает 0.
+    return 0
 
 
 def main() -> int:

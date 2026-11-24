@@ -185,7 +185,7 @@ class EpiasProcess:
         self.tgt = None
 
         # Загрузка получателей из .env (инкапсулировано внутри класса)
-        recipients_raw = os.getenv("RECIPIENTS", "")
+        recipients_raw =os.getenv("EPIAS_RECIPIENTS", "") or os.getenv("RECIPIENTS", "")
         self.recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
 
         if not self.recipients:
@@ -350,12 +350,15 @@ class EpiasProcess:
             subject = f"EPİAŞ данные за {dt.now().strftime('%Y-%m-%d')}"
             body = self._prepare_email_body(processed_sources, excel_filename)
 
-            self.mailer.send_mail(
+            sent = self.mailer.send_mail(
                 recipients=self.recipients,
                 subject=subject,
                 body=body,
                 file_paths=[str(file_path)]
             )
+            if not sent:
+                logger.error("Почтовый сервис не подтвердил отправку EPİAŞ всем получателям")
+                return False
 
             logger.info(f"✅ Письмо успешно отправлено на: {', '.join(self.recipients)}")
             logger.info(f"✅ Вложен файл: {excel_filename}")

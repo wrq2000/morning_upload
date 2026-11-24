@@ -450,20 +450,3 @@ class ArgusProcess:
     def get_name(cls):
         """Возвращает имя парсера для логирования и идентификации"""
         return "argus"
-
-
-# Для тестирования напрямую
-if __name__ == "__main__":
-    load_dotenv()
-    parser = ArgusProcess()
-    result = parser.run()
-
-    if result['all_success']:
-        logger.info(f"\n🎉 Парсер завершил работу успешно!")
-        logger.info(f"   Файлов скачано: {len(result['downloaded_files'])}")
-        logger.info(f"   Письмо отправлено: {'✅' if result['email_sent'] else '⚠️'}")
-    else:
-        logger.error(f"\n❌ Парсер завершил работу с ошибками")
-        logger.error(f"   Успешно: {len(result['downloaded_files'])}/{len(result['downloaded_files']) + len(result['failed_reports'])}")
-        logger.error(f"   Ошибки: {result['failed_reports']}")
-        logger.error(f"   Уведомление отправлено: {'✅' if result['email_sent'] else '❌'}")
