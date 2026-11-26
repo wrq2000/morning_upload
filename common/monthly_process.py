@@ -23,9 +23,9 @@ def latest_cycle(today, run_day):
 
 
 class MonthlyCsvMailProcess(CsvMailProcess):
-    def __init__(self, prefix, label, default_filename):
+    def __init__(self, prefix, label, default_filename, default_run_day=25):
         super().__init__(prefix, label, default_filename)
-        self.run_day = env_int(prefix + "_RUN_DAY", 25, maximum=31)
+        self.run_day = env_int(prefix + "_RUN_DAY", default_run_day, maximum=31)
         self.state_file = env_path(prefix + "_STATE_FILE", "state/" + prefix.lower() + "_monthly.json")
 
     def run(self):
@@ -52,7 +52,11 @@ class MonthlyCsvMailProcess(CsvMailProcess):
                     }
 
                 logger.info("%s: выполняется цикл %s, дата попытки %s", self.label, cycle, today)
-                result = super().run()
+                self._active_cycle = cycle
+                try:
+                    result = super().run()
+                finally:
+                    self._active_cycle = None
                 result["cycle"] = cycle.isoformat()
                 if result.get("all_success", result.get("success", False)):
                     state = {

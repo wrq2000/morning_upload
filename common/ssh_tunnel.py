@@ -51,19 +51,19 @@ class TunnelSettings:
 
     def __post_init__(self):
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]*", self.host):
-            raise ValueError("Укажите SSH_HOST: IP, адрес или простой SSH-профиль")
+            raise ValueError("Укажите VPN_SSH_HOST: IP, адрес или простой SSH-профиль")
         if self.user and not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9.-]*", self.user):
-            raise ValueError("Некорректный SSH_USER")
+            raise ValueError("Некорректный VPN_SSH_USER")
         if self.mode not in {"dynamic", "forward"} or (self.port is not None and not 1 <= self.port <= 65535):
             raise ValueError("Некорректный режим туннеля или порт SSH")
         if self.mode == "forward" and not 1 <= self.remote_proxy_port <= 65535:
-            raise ValueError("Для forward требуется REMOTE_PROXY_PORT")
+            raise ValueError("Для forward требуется VPN_REMOTE_PROXY_PORT")
         if self.proxy_scheme not in {"socks5h", "http"} or (self.mode == "dynamic" and self.proxy_scheme != "socks5h"):
             raise ValueError("Неверный протокол туннеля; dynamic использует socks5h")
         if self.connect_timeout <= 0 or not math.isfinite(self.startup_timeout) or self.startup_timeout <= 0:
             raise ValueError("Таймауты SSH должны быть положительными")
         if self.host_key_fingerprint and not re.fullmatch(r"SHA256:[A-Za-z0-9+/]{43}=?", self.host_key_fingerprint):
-            raise ValueError("SSH_HOST_KEY_SHA256: требуется отпечаток SHA256 из ssh-keygen")
+            raise ValueError("VPN_SSH_HOST_KEY_SHA256: требуется отпечаток SHA256 из ssh-keygen")
 
 
 def _receive_exact(stream, size):
@@ -201,7 +201,7 @@ class SSHTunnel:
             keys = ["~/.ssh/id_ed25519", "~/.ssh/id_rsa", "~/.ssh/id_ecdsa"]
         key = next((str(Path(name).expanduser()) for name in keys if Path(name).expanduser().is_file()), None)
         if key is None:
-            raise FileNotFoundError("Укажите доступный SSH_KEY для этого процесса")
+            raise FileNotFoundError("Укажите доступный VPN_SSH_KEY")
         return {"hostname": options.get("hostname", cfg.host),
                 "port": cfg.port if cfg.port is not None else int(options.get("port", 22)),
                 "username": cfg.user or options.get("user"), "key_filename": key,
@@ -277,17 +277,10 @@ class SSHTunnel:
         self.client = self.transport = self.server = self.thread = None
 
 
-def tunnel_settings_from_env(mode, prefix="UEEX", fallback_prefix=None):
-    """Параметры независимого процесса; необязательное наследование SSH-настроек.
-
-    Прежний вызов без prefix полностью сохраняет настройки UEEX_*.
-    Пустые значения процесса используют fallback_prefix, если он указан.
-    """
+def tunnel_settings_from_env(mode):
+    """Единственная конфигурация SSH/VPN для всех источников."""
     def setting(name, default=""):
-        value = os.getenv(prefix + "_" + name, "").strip()
-        if not value and fallback_prefix:
-            value = os.getenv(fallback_prefix + "_" + name, "").strip()
-        return value or default
+        return os.getenv("VPN_" + name, "").strip() or default
 
     port = setting("SSH_PORT")
     return TunnelSettings(
@@ -295,7 +288,7 @@ def tunnel_settings_from_env(mode, prefix="UEEX", fallback_prefix=None):
         port=int(port) if port else None,
         key=setting("SSH_KEY"), known_hosts=setting("SSH_KNOWN_HOSTS"),
         mode=mode, remote_proxy_port=int(setting("REMOTE_PROXY_PORT", "0")),
-        proxy_scheme=setting("REMOTE_PROXY_SCHEME", "socks5h"),
+        proxy_scheme=setting("REMOTE_PROXY_SCHEME", "socks5h") if mode == "forward" else "socks5h",
         connect_timeout=int(setting("SSH_CONNECT_TIMEOUT", "10")),
         startup_timeout=float(setting("SSH_STARTUP_TIMEOUT", "20")),
         host_key_fingerprint=setting("SSH_HOST_KEY_SHA256"),

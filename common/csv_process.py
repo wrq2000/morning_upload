@@ -7,6 +7,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .data_gateway import DataGateway
+from .errors import PublicationPending
 from .csv_delivery import csv_attachment
 from .http_client import HttpClient, HttpSettings
 from .mailer import send_mail
@@ -82,6 +83,11 @@ class CsvMailProcess:
                     "csv_file": str(csv_path), "duration_sec": round(time.monotonic() - started, 2),
                     "errors": [] if sent else ["CSV сохранён, отправка подтверждена не всем получателям"],
                 }
+        except PublicationPending as exc:
+            # Ожидание публикации — нормальная ситуация, не отправляем письмо об ошибке.
+            logger.info("%s: %s", self.label, exc)
+            return {"success": False, "all_success": False, "pending": True,
+                    "duration_sec": round(time.monotonic() - started, 2), "errors": [str(exc)]}
         except Exception as exc:
             logger.warning("%s: источник завершён с предупреждением: %s", self.label, exc, exc_info=True)
             if self.error_recipients:

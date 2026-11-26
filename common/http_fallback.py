@@ -48,7 +48,7 @@ def _reason(exc):
     return type(exc).__name__
 
 
-def fetch_text_with_fallback(url, prefix, validator=None, ssh_fallback_prefix=None):
+def fetch_text_with_fallback(url, prefix, validator=None):
     """auto: прямой запрос → при ошибке один запрос через собственный SSH-туннель.
 
     direct/vpn принудительно выбирают маршрут. SSH-конфигурация читается только
@@ -80,7 +80,7 @@ def fetch_text_with_fallback(url, prefix, validator=None, ssh_fallback_prefix=No
     # Импорт и установка соединения выполняются только для резервного маршрута.
     from .ssh_tunnel import SSHTunnel, tunnel_settings_from_env
     tunnel_mode = os.getenv(prefix + "_TUNNEL_MODE", "dynamic").strip().casefold()
-    settings = tunnel_settings_from_env(tunnel_mode, prefix=prefix, fallback_prefix=ssh_fallback_prefix)
+    settings = tunnel_settings_from_env(tunnel_mode)
     try:
         with SSHTunnel(settings) as proxy_url:
             return _request_text(url, prefix, proxy_url, timeout, user_agent, validator)

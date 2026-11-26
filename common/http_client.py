@@ -119,13 +119,13 @@ class HttpClient:
             # Длинное ожидание разбито на части с сообщениями о ходе работы.
             time.sleep(min(remaining, self.settings.wait_log_interval))
 
-    def get(self, url, params=None, headers=None):
+    def get(self, url, params=None, headers=None, accepted_statuses=()):
         if urlsplit(url).scheme not in {"http", "https"}:
             raise SourceError("HTTP-источник должен иметь схему http или https")
         full_url = requests.Request("GET", url, params=params).prepare().url
         # Платный Open-Meteo передаёт ключ в query. Скрываем его в сообщениях.
         parts = urlsplit(full_url)
-        query = [(key, "***" if key.lower() in {"apikey", "api_key", "token", "password"} else value)
+        query = [(key, "***" if key.lower() in {"apikey", "api_key", "token", "password", "securitytoken"} else value)
                  for key, value in parse_qsl(parts.query, keep_blank_values=True)]
         full_url = urlunsplit(parts._replace(query=urlencode(query)))
         with self._lock:
@@ -149,7 +149,7 @@ class HttpClient:
                         failure = "HTTP {}".format(last_status)
                         server_delay = retry_after_seconds(response.headers.get("Retry-After"))
                         response.close()
-                    elif not 200 <= last_status < 300:
+                    elif not 200 <= last_status < 300 and last_status not in accepted_statuses:
                         server_delay = retry_after_seconds(response.headers.get("Retry-After"))
                         response.close()
                         self._defer(max(self.settings.request_pause, server_delay or 0.0), "пауза между ответами")

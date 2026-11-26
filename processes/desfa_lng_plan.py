@@ -11,7 +11,8 @@ from bs4 import BeautifulSoup
 import requests
 from dotenv import load_dotenv
 from common.mailer import send_mail
-from connection.ssh_tool import create_proxy
+from common.ssh_tunnel import SSHTunnel, tunnel_settings_from_env
+from contextlib import ExitStack
 from settings import desfa_unloading_plan
 import logging
 logger = logging.getLogger(__name__)
@@ -292,19 +293,14 @@ URL: {url or 'N/A'}
 
         # Инициализация прокси
         proxy_url = None
-        proxy = None
+        stack = ExitStack()
 
         try:
             # === Создание прокси (если требуется) ===
             if self.use_proxy:
-                try:
-                    proxy_url, proxy = create_proxy()
-                    logger.info(f"✅ Прокси создан: {proxy_url}")
-                except Exception as e:
-                    logger.error(f"❌ Ошибка создания прокси: {str(e)}")
-                    # Продолжаем без прокси
-                    proxy_url = None
-                    proxy = None
+                mode = os.getenv("DESFA_TUNNEL_MODE", "dynamic").strip().casefold()
+                proxy_url = stack.enter_context(SSHTunnel(tunnel_settings_from_env(mode)))
+                logger.info("DESFA: SSH-прокси готов")
 
             # === Шаг 1: Получение страницы ===
             logger.info("➡️  Получение страницы...")
@@ -444,12 +440,7 @@ URL: {url or 'N/A'}
 
         finally:
             # === Остановка прокси ===
-            if proxy:
-                try:
-                    proxy.stop()
-                    logger.info("🔌 Прокси остановлен")
-                except Exception as e:
-                    logger.error(f"❌ Ошибка при остановке прокси: {str(e)}")
+            stack.close()
 
     @classmethod
     def get_name(cls):

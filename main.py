@@ -23,13 +23,16 @@ from datetime import datetime
 ENABLED_PROCESSES = [
     # ("Argus Media", "run_argus"),
     # ("DESFA", "run_desfa"),
-    # ("БелАЭС", "run_belaes"),
+    ("БелАЭС", "run_belaes"),
     # ("Tuz Gölü", "run_tuzgolu"),
     # ("EPİAŞ", "run_epias"),
-    # ("УЭБ", "run_ueex"),
-    # ("СПбМТСБ", "run_spimex"),
-    # ("Цхинвал", "run_tskhinval"),
+    ("УЭБ", "run_ueex"),
+    ("СПбМТСБ", "run_spimex"),
+    ("Цхинвал", "run_tskhinval"),
     ("Eurostat", "run_eurostat"),
+    ("Вывозные пошлины", "run_export_duty"),
+    ("ENTSO-E", "run_entsoe_flows"),
+    ("ChinaMoney", "run_chinamoney"),
 ]
 # ================================================================================
 
@@ -203,6 +206,36 @@ async def run_eurostat() -> dict:
         return await asyncio.to_thread(lambda: EurostatGasProcess().run())
     except Exception as exc:
         logger.warning("Ошибка процесса Eurostat")
+        return {"success": False, "errors": [str(exc)]}
+
+
+async def run_export_duty() -> dict:
+    """Ежемесячные ставки на нефть и СУГ; повтор до появления документа."""
+    try:
+        from processes.export_duty import ExportDutyProcess
+        return await asyncio.to_thread(lambda: ExportDutyProcess().run())
+    except Exception as exc:
+        logger.warning("Ошибка процесса вывозных пошлин", exc_info=True)
+        return {"success": False, "errors": [str(exc)]}
+
+
+async def run_chinamoney() -> dict:
+    """Ежедневный официальный курс USD/CNY."""
+    try:
+        from processes.chinamoney import ChinaMoneyProcess
+        return await asyncio.to_thread(lambda: ChinaMoneyProcess().run())
+    except Exception as exc:
+        logger.warning("Ошибка процесса ChinaMoney", exc_info=True)
+        return {"success": False, "errors": [str(exc)]}
+
+
+async def run_entsoe_flows() -> dict:
+    """Ежедневные физические перетоки ENTSO-E за завершённые сутки."""
+    try:
+        from processes.entsoe_flows import EntsoeFlowsProcess
+        return await asyncio.to_thread(lambda: EntsoeFlowsProcess().run())
+    except Exception as exc:
+        logger.warning("Ошибка процесса ENTSO-E", exc_info=True)
         return {"success": False, "errors": [str(exc)]}
 
 

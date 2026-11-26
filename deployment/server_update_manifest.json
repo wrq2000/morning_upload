@@ -8,8 +8,6 @@
     ".dockerignore",
     "Dockerfile",
     "common/mailer.py",
-    "connection/_alter_ssh.py",
-    "connection/ssh_tool.py",
     "main.py",
     "processes/argus.py",
     "processes/belaes.py",
@@ -49,6 +47,7 @@
   "removed_tools": [
     "processes/ueex/preflight.py",
     "deployment/server_audit.py",
-    "test_unicode.sh"
+    "test_unicode.sh",
+    "connection"
   ]
 }

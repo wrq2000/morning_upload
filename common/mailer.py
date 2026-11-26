@@ -3,6 +3,7 @@ import logging
 import math
 import mimetypes
 import os
+import re
 import smtplib
 import ssl
 from dataclasses import dataclass, field
@@ -11,6 +12,19 @@ from email.utils import formatdate, getaddresses, make_msgid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Единый обязательный идентификатор для маршрутизации входящих писем.
+SUBJECT_PREFIX = "134101"
+
+
+def format_subject(subject=None):
+    """Добавить префикс один раз, сохранив существующий текст темы."""
+    text = (subject or "Отчет системы сбора данных").strip()
+    if not text:
+        text = "Отчет системы сбора данных"
+    if re.match(r"^" + re.escape(SUBJECT_PREFIX) + r"\b", text):
+        return text
+    return SUBJECT_PREFIX + " " + text
 
 
 def recipient_list(value):
@@ -128,7 +142,7 @@ class MailSender:
             try:
                 msg = EmailMessage()
                 msg["From"], msg["To"] = profile.sender, ", ".join(pending)
-                msg["Subject"] = subject or "Отчет системы сбора данных"
+                msg["Subject"] = format_subject(subject)
                 msg["Date"], msg["Message-ID"] = formatdate(localtime=True), message_id
                 msg.set_content(body or "", charset="utf-8")
                 for name, payload, (maintype, subtype) in attachments:

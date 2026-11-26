@@ -121,7 +121,6 @@ class BelaesProcess:
         try:
             html = fetch_text_with_fallback(
                 self.url, "BELAES", validator=self.validate_production_page,
-                ssh_fallback_prefix="UEEX",
             )
             logger.info("✅ Страница БелАЭС успешно загружена, символов: %s", len(html))
             return html

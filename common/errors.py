@@ -11,3 +11,7 @@ class HttpSourceError(SourceError):
         super().__init__(message)
         self.status_code = status_code
         self.retry_not_before = retry_not_before
+
+
+class PublicationPending(SourceError):
+    """Ожидаемая новая месячная публикация пока не найдена."""

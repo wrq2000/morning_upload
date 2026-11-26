@@ -21,12 +21,11 @@ class AutoHttpClient:
     таймауты, проверка TLS и маскирование секретов остаются в HttpClient.
     """
 
-    def __init__(self, settings, prefix, ssh_fallback_prefix=None, response_validator=None):
+    def __init__(self, settings, prefix, response_validator=None, default_mode="auto"):
         self.settings = settings
         self.prefix = prefix
-        self.ssh_fallback_prefix = ssh_fallback_prefix
         self.response_validator = response_validator
-        mode = os.getenv(prefix + "_NETWORK_MODE", "auto").strip().casefold()
+        mode = os.getenv(prefix + "_NETWORK_MODE", default_mode).strip().casefold()
         if mode not in {"auto", "direct", "proxy", "vpn"}:
             raise ValueError(prefix + "_NETWORK_MODE: требуется auto, direct, proxy или vpn")
         self.mode = mode
@@ -54,8 +53,7 @@ class AutoHttpClient:
                 # SSH не импортируется/не запускается при исправном прямом доступе.
                 from .ssh_tunnel import SSHTunnel, tunnel_settings_from_env
                 mode = os.getenv(self.prefix + "_TUNNEL_MODE", "dynamic").strip().casefold()
-                config = tunnel_settings_from_env(mode, prefix=self.prefix,
-                                                  fallback_prefix=self.ssh_fallback_prefix)
+                config = tunnel_settings_from_env(mode)
                 proxy_url = self._stack.enter_context(SSHTunnel(config))
                 logger.info("%s: резервный маршрут SSH/VPN готов", self.prefix)
             else:

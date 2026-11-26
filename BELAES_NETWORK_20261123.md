@@ -20,7 +20,7 @@ BELAES_URL=https://belaes.by/ru/proizvodstvennye-pokazateli.html
 BELAES_CONNECT_TIMEOUT=10
 BELAES_READ_TIMEOUT=30
 BELAES_TUNNEL_MODE=dynamic
-BELAES_REMOTE_PROXY_SCHEME=socks5h
+VPN_REMOTE_PROXY_SCHEME=socks5h
 ```
 
 При отсутствии этих строк действуют те же значения по умолчанию. Используйте полный
@@ -34,28 +34,14 @@ BELAES_REMOTE_PROXY_SCHEME=socks5h
 | `BELAES_READ_TIMEOUT` | Таймаут ожидания данных HTTP, секунды |
 | `BELAES_USER_AGENT` | По умолчанию Firefox 140.0 для Linux |
 | `BELAES_TUNNEL_MODE` | `dynamic` (по умолчанию) либо `forward` |
-| `BELAES_SSH_HOST`, `BELAES_SSH_USER`, `BELAES_SSH_PORT` | Адрес VPN-сервера и реквизиты SSH |
-| `BELAES_SSH_KEY` | Путь к закрытому ключу на машине/в контейнере запуска |
-| `BELAES_SSH_HOST_KEY_SHA256` | Доверенный отпечаток ключа VPN-сервера |
-| `BELAES_SSH_KNOWN_HOSTS` | Файл known_hosts, если отпечаток не задан |
-| `BELAES_SSH_CONNECT_TIMEOUT`, `BELAES_SSH_STARTUP_TIMEOUT` | Таймауты SSH |
-| `BELAES_REMOTE_PROXY_PORT`, `BELAES_REMOTE_PROXY_SCHEME` | Для `forward` — порт прокси на удалённом сервере и его протокол |
+| `VPN_SSH_HOST`, `VPN_SSH_USER`, `VPN_SSH_PORT` | Адрес VPN-сервера и реквизиты SSH |
+| `VPN_SSH_KEY` | Путь к закрытому ключу на машине/в контейнере запуска |
+| `VPN_SSH_HOST_KEY_SHA256` | Доверенный отпечаток ключа VPN-сервера |
+| `VPN_SSH_KNOWN_HOSTS` | Файл known_hosts, если отпечаток не задан |
+| `VPN_SSH_CONNECT_TIMEOUT`, `VPN_SSH_STARTUP_TIMEOUT` | Таймауты SSH |
+| `VPN_REMOTE_PROXY_PORT`, `VPN_REMOTE_PROXY_SCHEME` | Для `forward` — порт прокси на удалённом сервере и его протокол |
 
-Пустые/отсутствующие SSH-поля наследуют соответствующие `UEEX_*`. Можно использовать
-тот же сервер, ключ и отпечаток, что уже настроены для УЭБ. Если для БелАЭС выбирается
-другой сервер, задайте его собственные адрес, пользователя, ключ и отпечаток.
-
-На ноутбуке путь `/root/.ssh/...` из серверной конфигурации недоступен обычному пользователю.
-Для БелАЭС можно отдельно задать:
-
-```dotenv
-BELAES_SSH_KEY=/home/alexander/.ssh/id_ed25519
-BELAES_SSH_KNOWN_HOSTS=/home/alexander/.ssh/known_hosts
-```
-
-Укажите фактическое имя своего закрытого ключа. Если локальный UEEX уже настроен и работает,
-пустое `BELAES_SSH_KEY` использует его путь. Изменения BELAES_* не меняют настройки УЭБ.
-Если задан `*_SSH_HOST_KEY_SHA256`, используется проверка отпечатка; иначе действует
+Все процессы используют единый блок `VPN_SSH_*` из `.env`. Укажите фактический путь к закрытому ключу на сервере или внутри контейнера. Если задан `VPN_SSH_HOST_KEY_SHA256`, используется проверка отпечатка; иначе действует
 проверка known_hosts. Автоматическое доверие неизвестному ключу не включается.
 
 ## Как используется VPN
@@ -107,6 +93,6 @@ Cron продолжит запускать тот же `run.sh`.
 с `source_date, fetch_date, unit, accumulated_production`.
 В 11 контролируемых тестах проверены: исправный прямой доступ без SSH-настроек,
 тайм-аут/403/страница блокировки и переход на SSH, принудительные DIRECT/VPN,
-ошибки обоих маршрутов, закрытие ресурсов, наследование UEEX_* и отдельные BELAES_*.
+ошибки обоих маршрутов, закрытие ресурсов, общие параметры VPN_SSH_*.
 Во время тестов реальные письма не отправляются. Подключение к вашему VPN-серверу
 не выполнялось; этот участок проверяется запуском из вашей локальной сети.
