@@ -110,8 +110,8 @@ def load_settings(env_path=None) -> Settings:
         return (value if value.is_absolute() else PROJECT_ROOT / value).resolve()
 
     proxy_enabled = boolean("PROXY_ENABLED")
-    proxy_url = text("PROXY_URL", allow_empty=not proxy_enabled)
-    if proxy_enabled:
+    proxy_url = text("PROXY_URL", allow_empty=True)
+    if proxy_enabled and proxy_url:
         parsed = urlsplit(proxy_url)
         if parsed.scheme not in {"http", "https", "socks5", "socks5h", "socks4", "socks4a"}:
             raise ValueError("PROXY_URL: требуется адрес HTTP или SOCKS-прокси со схемой")

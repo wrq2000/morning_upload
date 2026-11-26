@@ -18,9 +18,12 @@ VPN и отправка через Яндекс/Google проверены пол
 cd /home/vologzhaninov_as/projects/morning_upload_update
 
 rm -f processes/ueex/preflight.py deployment/server_audit.py test_unicode.sh
+rm -rf connection
 
 
 ```
+
+Перед запуском перенесите действующие реквизиты SSH в общий блок VPN_SSH_* из .env.example и удалите прежние индивидуальные SSH-настройки. См. VPN_SHARED.md в корне проекта.
 
 В .env оставьте UEEX_RECHECK_DAYS=14. Удалите старые строки
 UEEX_FULL_RESCAN_DAYS, UEEX_FORCE_FULL_SCAN и UEEX_EXTRA_RESULT_URLS, если есть.
@@ -111,6 +114,7 @@ for relative in ('processes/ueex/preflight.py', 'deployment/server_audit.py', 't
     obsolete = target / relative
     if obsolete.exists():
         obsolete.unlink()
+shutil.rmtree(target / 'connection', ignore_errors=True)
 print('Файлы обновлены; runtime сохранён')
 PYCODE
 

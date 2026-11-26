@@ -88,7 +88,7 @@ class TskhinvalProcess(CsvMailProcess):
             )
 
     def http_client(self):
-        return AutoHttpClient(self.http_settings(), self.prefix, ssh_fallback_prefix="UEEX",
+        return AutoHttpClient(self.http_settings(), self.prefix,
                               response_validator=validate_json_access)
 
     async def collect(self, client, today):

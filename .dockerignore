@@ -7,8 +7,6 @@
 !settings.py
 !processes/
 !processes/**
-!connection/
-!connection/**
 !common/
 !common/**
 !.env.example

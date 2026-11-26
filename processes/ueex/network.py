@@ -10,8 +10,10 @@ from common.ssh_tunnel import SSHTunnel, tunnel_settings_from_env
 def network_settings(settings):
     if not settings.http.proxy_enabled:
         raise ValueError("Для УЭБ обязателен VPN-прокси")
-    mode = os.getenv("UEEX_TUNNEL_MODE", "none").strip().casefold()
+    mode = os.getenv("UEEX_TUNNEL_MODE", "dynamic").strip().casefold()
     if mode == "none":
+        if not settings.http.proxy_url:
+            raise ValueError("UEEX_PROXY_URL обязателен при UEEX_TUNNEL_MODE=none")
         yield settings
     elif mode in {"dynamic", "forward"}:
         with SSHTunnel(tunnel_settings_from_env(mode)) as url:
